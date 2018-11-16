@@ -174,3 +174,37 @@ def topteams(count):
         json['places'][i + 1]['solves'] = sorted(json['places'][i + 1]['solves'], key=lambda k: k['time'])
 
     return jsonify(json)
+
+@scoreboard.route('/liveview')
+def liveview():
+    json = []
+
+    chals = db.session.query(Challenges.id, Challenges.name, Challenges.value).filter(Challenges.hidden == False)
+    solves = db.session.query(Solves)
+
+    freeze = utils.get_config('freeze')
+    if freeze:
+        solves = solves.filter(Solves.date < utils.unix_time_to_utc(freeze))
+
+    chals  = chals.all()
+    solves = solves.all()
+
+    for i, chal in enumerate(chals):
+        json.append({
+            'id': chal.id,
+            'name': chal.name,
+            'value': chal.value,
+            'solvers': []
+        })
+        for solve in solves:
+            if solve.chalid == chal.id:
+                json[i]['solvers'].append({
+                    'team': solve.teamid,
+                    'time': utils.unix_time(solve.date)
+                })
+        json[i]['solvers'] = sorted(json[i]['solvers'], key=lambda k: k['time'])
+
+    from flask import make_response
+    resp = make_response(jsonify(json))
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
