@@ -192,7 +192,7 @@ def liveview():
     for i, chal in enumerate(chals):
         json.append({
             'id': chal.id,
-            'name': chal.name,
+            'name': '', # hide chal name
             'value': chal.value,
             'solvers': []
         })
