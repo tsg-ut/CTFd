@@ -78,7 +78,7 @@ def get_wrong_submissions_per_minute(account_id):
     """
     one_min_ago = datetime.datetime.utcnow() + datetime.timedelta(minutes=-1)
     fails = db.session.query(Fails).filter(
-        Fails.account_id == account_id,
+        Fails.user_id == account_id,
         Fails.date >= one_min_ago
     ).all()
     return len(fails)
