@@ -36,7 +36,7 @@ $(function () {
         return false;
     });
 
-    $("tr a, button").click(function (e) {
+    $("tr a, button:not(.navbar button, .modal button)").click(function (e) {
         e.stopPropagation();
     });
 
