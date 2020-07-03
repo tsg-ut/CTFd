@@ -1,13 +1,19 @@
 from CTFd.cache import cache
-from CTFd.models import Pages
+from CTFd.models import db, Pages
 
 
-# @cache.memoize()
+@cache.memoize()
 def get_pages():
-    db_pages = Pages.query.filter(Pages.route != "index", Pages.draft.isnot(True), Pages.hidden.isnot(True)).all()
+    db_pages = Pages.query.filter(
+        Pages.route != "index", Pages.draft.isnot(True), Pages.hidden.isnot(True)
+    ).all()
     return db_pages
 
 
 @cache.memoize()
 def get_page(route):
-    return Pages.query.filter(Pages.route == route, Pages.draft.isnot(True), Pages.hidden.isnot(True)).first()
+    return db.session.execute(
+        Pages.__table__.select()
+        .where(Pages.route == route)
+        .where(Pages.draft.isnot(True))
+    ).fetchone()

@@ -1,7 +1,7 @@
-from CTFd.utils import get_config
-
 import datetime
 import time
+
+from CTFd.utils import get_config
 
 
 def ctftime():
@@ -40,7 +40,7 @@ def ctftime():
 
 
 def ctf_paused():
-    return get_config('paused')
+    return get_config("paused")
 
 
 def ctf_started():
@@ -54,7 +54,7 @@ def ctf_ended():
 
 
 def view_after_ctf():
-    return get_config('view_after_ctf')
+    return get_config("view_after_ctf")
 
 
 def unix_time(dt):
@@ -70,4 +70,4 @@ def unix_time_to_utc(t):
 
 
 def isoformat(dt):
-    return dt.isoformat() + 'Z'
+    return dt.isoformat() + "Z"

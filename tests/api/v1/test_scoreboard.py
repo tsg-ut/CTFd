@@ -5,11 +5,11 @@ from CTFd.cache import clear_standings
 from tests.helpers import (
     create_ctfd,
     destroy_ctfd,
-    register_user,
-    login_as_user,
     gen_challenge,
     gen_flag,
-    gen_solve
+    gen_solve,
+    login_as_user,
+    register_user,
 )
 
 
@@ -22,25 +22,31 @@ def test_scoreboard_is_cached():
 
         # create challenge
         chal = gen_challenge(app.db, value=100)
-        gen_flag(app.db, challenge_id=chal.id, content='flag')
+        gen_flag(app.db, challenge_id=chal.id, content="flag")
         chal_id = chal.id
 
         # create a solve for the challenge for user1. (the id is 2 because of the admin)
         gen_solve(app.db, user_id=2, challenge_id=chal_id)
 
-        with login_as_user(app, 'user1') as client:
+        with login_as_user(app, "user1") as client:
             # No cached data
-            assert app.cache.get('view/api.scoreboard_scoreboard_list') is None
-            assert app.cache.get('view/api.scoreboard_scoreboard_detail') is None
+            assert app.cache.get("view/api.scoreboard_scoreboard_list") is None
+            assert app.cache.get("view/api.scoreboard_scoreboard_detail") is None
 
             # Load and check cached data
-            client.get('/api/v1/scoreboard')
-            assert app.cache.get('view/api.scoreboard_scoreboard_list')
-            client.get('/api/v1/scoreboard/top/10')
-            assert app.cache.get('view/api.scoreboard_scoreboard_detail')
+            client.get("/api/v1/scoreboard")
+            assert app.cache.get("view/api.scoreboard_scoreboard_list")
+            client.get("/api/v1/scoreboard/top/10")
+            assert app.cache.get("view/api.scoreboard_scoreboard_detail")
+
+            # Check scoreboard page
+            assert app.cache.get("view/scoreboard.listing") is None
+            client.get("/scoreboard")
+            assert app.cache.get("view/scoreboard.listing")
 
             # Empty standings and check that the cached data is gone
             clear_standings()
-            assert app.cache.get('view/api.scoreboard_scoreboard_list') is None
-            assert app.cache.get('view/api.scoreboard_scoreboard_detail') is None
+            assert app.cache.get("view/api.scoreboard_scoreboard_list") is None
+            assert app.cache.get("view/api.scoreboard_scoreboard_detail") is None
+            assert app.cache.get("view/scoreboard.listing") is None
     destroy_ctfd(app)

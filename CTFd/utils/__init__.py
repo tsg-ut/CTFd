@@ -1,6 +1,7 @@
 import mistune
 import six
 from flask import current_app as app
+
 from CTFd.cache import cache
 
 if six.PY2:
@@ -22,23 +23,28 @@ def get_app_config(key, default=None):
 
 @cache.memoize()
 def _get_config(key):
-    config = Configs.query.filter_by(key=key).first()
+    config = db.session.execute(
+        Configs.__table__.select().where(Configs.key == key)
+    ).fetchone()
     if config and config.value:
         value = config.value
         if value and value.isdigit():
             return int(value)
         elif value and isinstance(value, six.string_types):
-            if value.lower() == 'true':
+            if value.lower() == "true":
                 return True
-            elif value.lower() == 'false':
+            elif value.lower() == "false":
                 return False
             else:
                 return value
+    # Flask-Caching is unable to roundtrip a value of None.
+    # Return an exception so that we can still cache and avoid the db hit
+    return KeyError
 
 
 def get_config(key, default=None):
     value = _get_config(key)
-    if value is None:
+    if value is KeyError:
         return default
     else:
         return value
@@ -56,7 +62,4 @@ def set_config(key, value):
     return config
 
 
-from CTFd.models import (  # noqa: E402
-    db,
-    Configs
-)
+from CTFd.models import Configs, db  # noqa: E402

@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from tests.helpers import (create_ctfd,
-                           destroy_ctfd,
-                           login_as_user,
-                           gen_user)
-from CTFd.utils import get_config
+from flask import request
 from jinja2.sandbox import SecurityError
 from werkzeug.test import Client
-from flask import request
+
+from CTFd.utils import get_config
+from tests.helpers import create_ctfd, destroy_ctfd, gen_user, login_as_user
 
 
 def test_themes_run_in_sandbox():
@@ -16,7 +14,9 @@ def test_themes_run_in_sandbox():
     app = create_ctfd()
     with app.app_context():
         try:
-            app.jinja_env.from_string("{{ ().__class__.__bases__[0].__subclasses__()[40]('./test_utils.py').read() }}").render()
+            app.jinja_env.from_string(
+                "{{ ().__class__.__bases__[0].__subclasses__()[40]('./test_utils.py').read() }}"
+            ).render()
         except SecurityError:
             pass
         except Exception as e:
@@ -28,8 +28,11 @@ def test_themes_cant_access_configpy_attributes():
     """Themes should not be able to access config.py attributes"""
     app = create_ctfd()
     with app.app_context():
-        assert app.config['SECRET_KEY'] == 'AAAAAAAAAAAAAAAAAAAA'
-        assert app.jinja_env.from_string("{{ get_config('SECRET_KEY') }}").render() != app.config['SECRET_KEY']
+        assert app.config["SECRET_KEY"] == "AAAAAAAAAAAAAAAAAAAA"
+        assert (
+            app.jinja_env.from_string("{{ get_config('SECRET_KEY') }}").render()
+            != app.config["SECRET_KEY"]
+        )
     destroy_ctfd(app)
 
 
@@ -43,30 +46,30 @@ def test_themes_escape_html():
         user.country = "<script>alert(1)</script>"
 
         with app.test_client() as client:
-            r = client.get('/users')
+            r = client.get("/users")
             assert r.status_code == 200
             assert "<script>alert(1)</script>" not in r.get_data(as_text=True)
     destroy_ctfd(app)
 
 
-def test_custom_css():
-    """Config should be able to properly set CSS"""
+def test_theme_header():
+    """Config should be able to properly set CSS in theme header"""
     app = create_ctfd()
     with app.app_context():
 
         with login_as_user(app, "admin") as admin:
             css_value = """.test{}"""
             css_value2 = """.test2{}"""
-            r = admin.patch('/api/v1/configs', json={"css": css_value})
+            r = admin.patch("/api/v1/configs", json={"theme_header": css_value})
             assert r.status_code == 200
-            assert get_config('css') == css_value
+            assert get_config("theme_header") == css_value
 
-            r = admin.get('/static/user.css')
-            assert r.get_data(as_text=True) == css_value
+            r = admin.get("/")
+            assert css_value in r.get_data(as_text=True)
 
-            r = admin.patch('/api/v1/configs', json={"css": css_value2})
-            r = admin.get('/static/user.css')
-            assert r.get_data(as_text=True) == css_value2
+            r = admin.patch("/api/v1/configs", json={"theme_header": css_value2})
+            r = admin.get("/")
+            assert css_value2 in r.get_data(as_text=True)
     destroy_ctfd(app)
 
 
@@ -76,38 +79,39 @@ def test_that_ctfd_can_be_deployed_in_subdir():
     # Flask is automatically inserting the APPLICATION_ROOT into the
     # test urls which means when we hit /setup we hit /ctf/setup.
     # You can use the raw Werkzeug client to bypass this as we do below.
-    app = create_ctfd(setup=False, application_root='/ctf')
+    app = create_ctfd(setup=False, application_root="/ctf")
     with app.app_context():
         with app.test_client() as client:
-            r = client.get('/')
+            r = client.get("/")
             assert r.status_code == 302
-            assert r.location == 'http://localhost/ctf/setup'
+            assert r.location == "http://localhost/ctf/setup"
 
-            r = client.get('/setup')
+            r = client.get("/setup")
             with client.session_transaction() as sess:
                 data = {
-                    "ctf_name": 'name',
-                    "name": 'admin',
-                    "email": 'admin@ctfd.io',
-                    "password": 'password',
-                    "user_mode": 'users',
-                    "nonce": sess.get('nonce')
+                    "ctf_name": "CTFd",
+                    "ctf_description": "CTF description",
+                    "name": "admin",
+                    "email": "admin@ctfd.io",
+                    "password": "password",
+                    "user_mode": "users",
+                    "nonce": sess.get("nonce"),
                 }
-            r = client.post('/setup', data=data)
+            r = client.post("/setup", data=data)
             assert r.status_code == 302
-            assert r.location == 'http://localhost/ctf/'
+            assert r.location == "http://localhost/ctf/"
 
             c = Client(app)
-            app_iter, status, headers = c.get('/')
+            app_iter, status, headers = c.get("/")
             headers = dict(headers)
-            assert status == '302 FOUND'
-            assert headers['Location'] == 'http://localhost/ctf/'
+            assert status == "302 FOUND"
+            assert headers["Location"] == "http://localhost/ctf/"
 
-            r = client.get('/challenges')
+            r = client.get("/challenges")
             assert r.status_code == 200
             assert "Challenges" in r.get_data(as_text=True)
 
-            r = client.get('/scoreboard')
+            r = client.get("/scoreboard")
             assert r.status_code == 200
             assert "Scoreboard" in r.get_data(as_text=True)
     destroy_ctfd(app)
@@ -115,25 +119,26 @@ def test_that_ctfd_can_be_deployed_in_subdir():
 
 def test_that_request_path_hijacking_works_properly():
     """Test that the CTFdRequest subclass correctly mimics the Flask Request when it should"""
-    app = create_ctfd(setup=False, application_root='/ctf')
-    assert app.request_class.__name__ == 'CTFdRequest'
+    app = create_ctfd(setup=False, application_root="/ctf")
+    assert app.request_class.__name__ == "CTFdRequest"
     with app.app_context():
         # Despite loading /challenges request.path should actually be /ctf/challenges because we are
         # preprending script_root and the test context already accounts for the application_root
-        with app.test_request_context('/challenges'):
-            assert request.path == '/ctf/challenges'
+        with app.test_request_context("/challenges"):
+            assert request.path == "/ctf/challenges"
     destroy_ctfd(app)
 
     app = create_ctfd()
-    assert app.request_class.__name__ == 'CTFdRequest'
+    assert app.request_class.__name__ == "CTFdRequest"
     with app.app_context():
         # Under normal circumstances we should be an exact clone of BaseRequest
-        with app.test_request_context('/challenges'):
-            assert request.path == '/challenges'
+        with app.test_request_context("/challenges"):
+            assert request.path == "/challenges"
 
         from flask import Flask
-        test_app = Flask('test')
-        assert test_app.request_class.__name__ == 'Request'
-        with test_app.test_request_context('/challenges'):
-            assert request.path == '/challenges'
+
+        test_app = Flask("test")
+        assert test_app.request_class.__name__ == "Request"
+        with test_app.test_request_context("/challenges"):
+            assert request.path == "/challenges"
     destroy_ctfd(app)

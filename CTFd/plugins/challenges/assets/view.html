@@ -31,8 +31,7 @@
 						<div class="challenge-hints hint-row row">
 							{% for hint in hints %}
 								<div class='col-md-12 hint-button-wrapper text-center mb-3'>
-									<a class="btn btn-info btn-hint btn-block" href="javascript:;"
-									   onclick="javascript:loadhint({{ hint.id }})">
+									<a class="btn btn-info btn-hint btn-block load-hint" href="javascript:;" data-hint-id="{{ hint.id }}">
 										{% if hint.content %}
 											<small>
 												View Hint
@@ -79,7 +78,7 @@
 								<input id="challenge-id" type="hidden" value="{{ id }}">
 							</div>
 							<div class="col-md-3 form-group key-submit">
-								<button type="submit" id="submit-key" tabindex="5"
+								<button type="submit" id="submit-key" tabindex="0"
 										class="btn btn-md btn-outline-secondary float-right">Submit
 								</button>
 							</div>

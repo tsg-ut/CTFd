@@ -8,12 +8,14 @@
 	<tbody id="challenge-solves-body">
 		{% if solves is defined %}
 			{% for solve in solves %}
-				<tr>
-					<td>{{ solve.account.name }}</td>
+				<tr data-href="{{ generate_account_url(solve.account_id, admin=True) }}">
 					<td>
-						<script>
-							document.write(moment("{{ solve.date | isoformat }}").local().format('MMMM Do, h:mm:ss A'))
-						</script>
+						<a href="{{ generate_account_url(solve.account_id, admin=True) }}">
+							{{ solve.account.name }}
+						</a>
+					</td>
+					<td>
+						<span data-time="{{ solve.date | isoformat }}"></span>
 					</td>
 				</tr>
 			{% endfor %}

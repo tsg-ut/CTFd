@@ -20,9 +20,13 @@
 				</div>
 			{% endfor %}
 
-			<a class="btn btn-secondary btn-lg btn-block" href="{{ url_for('auth.oauth_login') }}">Login with Major League Cyber</a>
+			{% if integrations.mlc() %}
+			<a class="btn btn-secondary btn-lg btn-block" href="{{ url_for('auth.oauth_login') }}">
+				Login with Major League Cyber
+			</a>
 
 			<hr>
+			{% endif %}
 
 			<form method="post" accept-charset="utf-8" autocomplete="off" role="form" class="form-horizontal">
 				<div class="form-group">
@@ -45,7 +49,7 @@
 				</div>
 				<div class="row pt-3">
 					<div class="col-md-12">
-						<button type="submit" id="submit" tabindex="5" class="btn btn-md btn-primary btn-outlined float-right">Submit</button>
+						<button type="submit" tabindex="0" class="btn btn-md btn-primary btn-outlined float-right">Submit</button>
 					</div>
 				</div>
 				<input type="hidden" name="nonce" value="{{ nonce }}">
