@@ -60,11 +60,8 @@ class DynamicValueChallenge(BaseChallenge):
             .count()
         )
 
-        # If the solve count is 0 we shouldn't manipulate the solve count to
-        # let the math update back to normal
-        if solve_count != 0:
-            # We subtract -1 to allow the first solver to get max point value
-            solve_count -= 1
+        if solve_count == 0:
+            solve_count = 1
 
         # It is important that this calculation takes into account floats.
         # Hence this file uses from __future__ import division
