@@ -125,7 +125,7 @@ class S3Uploader(BaseUploader):
                 ),
             },
         )
-        return redirect(url)
+        return redirect(url.split('?')[0])
 
     def delete(self, filename):
         self.s3.delete_object(Bucket=self.bucket, Key=filename)
