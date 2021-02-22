@@ -224,11 +224,8 @@ def test_dynamic_challenge_loses_value_properly():
                 assert resp["status"] == "correct"
 
                 chal = DynamicChallenge.query.filter_by(id=1).first()
-                if i >= 20:
-                    assert chal.value == chal.minimum
-                else:
-                    assert chal.initial >= chal.value
-                    assert chal.value > chal.minimum
+                assert chal.initial >= chal.value
+                assert chal.value >= chal.minimum
     destroy_ctfd(app)
 
 
