@@ -137,9 +137,7 @@ function deleteSelectedSubmissions(event, target) {
 
   ezQuery({
     title: `Delete ${title}`,
-    body: `Are you sure you want to delete ${
-      submissionIDs.length
-    } ${target_string}?`,
+    body: `Are you sure you want to delete ${submissionIDs.length} ${target_string}?`,
     success: function() {
       const reqs = [];
       for (var subId of submissionIDs) {
@@ -385,9 +383,7 @@ $(() => {
       .then(function(response) {
         if (response.success) {
           let code = response.data.code;
-          let url = `${window.location.origin}${
-            CTFd.config.urlRoot
-          }/teams/invite?code=${code}`;
+          let url = `${window.location.origin}${CTFd.config.urlRoot}/teams/invite?code=${code}`;
           $("#team-invite-modal input[name=link]").val(url);
           $("#team-invite-modal").modal("toggle");
         }
