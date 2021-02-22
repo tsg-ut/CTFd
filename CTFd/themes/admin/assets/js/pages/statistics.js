@@ -2,28 +2,16 @@ import "./main";
 import "core/utils";
 import CTFd from "core/CTFd";
 import $ from "jquery";
-import Plotly from "plotly.js-basic-dist";
-import { createGraph, updateGraph } from "core/graphs";
+import echarts from "echarts/dist/echarts-en.common";
+import { colorHash } from "core/utils";
 
 const graph_configs = {
   "#solves-graph": {
-    layout: annotations => ({
-      title: "Solve Counts",
-      annotations: annotations,
-      xaxis: {
-        title: "Challenge Name"
-      },
-      yaxis: {
-        title: "Amount of Solves"
-      }
-    }),
-    fn: () => "CTFd_solves_" + new Date().toISOString().slice(0, 19),
     data: () => CTFd.api.get_challenge_solve_statistics(),
     format: response => {
       const data = response.data;
       const chals = [];
       const counts = [];
-      const annotations = [];
       const solves = {};
       for (let c = 0; c < data.length; c++) {
         solves[data[c]["id"]] = {
@@ -39,63 +27,167 @@ const graph_configs = {
       $.each(solves_order, function(key, value) {
         chals.push(solves[value].name);
         counts.push(solves[value].solves);
-        const result = {
-          x: solves[value].name,
-          y: solves[value].solves,
-          text: solves[value].solves,
-          xanchor: "center",
-          yanchor: "bottom",
-          showarrow: false
-        };
-        annotations.push(result);
       });
 
-      return [
-        {
-          type: "bar",
-          x: chals,
-          y: counts,
-          text: counts,
-          orientation: "v"
+      const option = {
+        title: {
+          left: "center",
+          text: "Solve Counts"
         },
-        annotations
-      ];
+        tooltip: {
+          trigger: "item"
+        },
+        toolbox: {
+          show: true,
+          feature: {
+            mark: { show: true },
+            dataView: { show: true, readOnly: false },
+            magicType: { show: true, type: ["line", "bar"] },
+            restore: { show: true },
+            saveAsImage: { show: true }
+          }
+        },
+        xAxis: {
+          name: "Solve Count",
+          nameLocation: "middle",
+          type: "value"
+        },
+        yAxis: {
+          name: "Challenge Name",
+          nameLocation: "middle",
+          nameGap: 60,
+          type: "category",
+          data: chals,
+          axisLabel: {
+            interval: 0,
+            rotate: 0 //If the label names are too long you can manage this by rotating the label.
+          }
+        },
+        dataZoom: [
+          {
+            show: false,
+            start: 0,
+            end: 100
+          },
+          {
+            type: "inside",
+            yAxisIndex: 0,
+            show: true,
+            width: 20
+          },
+          {
+            fillerColor: "rgba(233, 236, 241, 0.4)",
+            show: true,
+            yAxisIndex: 0,
+            width: 20
+          }
+        ],
+        series: [
+          {
+            itemStyle: { normal: { color: "#1f76b4" } },
+            data: counts,
+            type: "bar"
+          }
+        ]
+      };
+
+      return option;
     }
   },
 
   "#keys-pie-graph": {
-    layout: () => ({
-      title: "Submission Percentages"
-    }),
-    fn: () => "CTFd_submissions_" + new Date().toISOString().slice(0, 19),
     data: () => CTFd.api.get_submission_property_counts({ column: "type" }),
     format: response => {
       const data = response.data;
       const solves = data["correct"];
       const fails = data["incorrect"];
 
-      return [
-        {
-          values: [solves, fails],
-          labels: ["Correct", "Incorrect"],
-          marker: {
-            colors: ["rgb(0, 209, 64)", "rgb(207, 38, 0)"]
-          },
-          text: ["Solves", "Fails"],
-          hole: 0.4,
-          type: "pie"
+      let option = {
+        title: {
+          left: "center",
+          text: "Submission Percentages"
         },
-        null
-      ];
+        tooltip: {
+          trigger: "item"
+        },
+        toolbox: {
+          show: true,
+          feature: {
+            dataView: { show: true, readOnly: false },
+            saveAsImage: {}
+          }
+        },
+        legend: {
+          orient: "vertical",
+          top: "middle",
+          right: 0,
+          data: ["Fails", "Solves"]
+        },
+        series: [
+          {
+            name: "Submission Percentages",
+            type: "pie",
+            radius: ["30%", "50%"],
+            avoidLabelOverlap: false,
+            label: {
+              show: false,
+              position: "center"
+            },
+            itemStyle: {
+              normal: {
+                label: {
+                  show: true,
+                  formatter: function(data) {
+                    return `${data.name} - ${data.value} (${data.percent}%)`;
+                  }
+                },
+                labelLine: {
+                  show: true
+                }
+              },
+              emphasis: {
+                label: {
+                  show: true,
+                  position: "center",
+                  textStyle: {
+                    fontSize: "14",
+                    fontWeight: "normal"
+                  }
+                }
+              }
+            },
+            emphasis: {
+              label: {
+                show: true,
+                fontSize: "30",
+                fontWeight: "bold"
+              }
+            },
+            labelLine: {
+              show: false
+            },
+            data: [
+              {
+                value: fails,
+                name: "Fails",
+                itemStyle: { color: "rgb(207, 38, 0)" }
+              },
+              {
+                value: solves,
+                name: "Solves",
+                itemStyle: { color: "rgb(0, 209, 64)" }
+              }
+            ]
+          }
+        ]
+      };
+
+      return option;
     }
   },
 
   "#categories-pie-graph": {
-    layout: () => ({
-      title: "Category Breakdown"
-    }),
     data: () => CTFd.api.get_challenge_property_counts({ column: "category" }),
-    fn: () => "CTFd_categories_" + new Date().toISOString().slice(0, 19),
     format: response => {
       const data = response.data;
 
@@ -114,15 +206,82 @@ const graph_configs = {
         count.push(data[i].count);
       }
 
-      return [
-        {
-          values: count,
-          labels: categories,
-          hole: 0.4,
-          type: "pie"
+      let option = {
+        title: {
+          left: "center",
+          text: "Category Breakdown"
         },
-        null
-      ];
+        tooltip: {
+          trigger: "item"
+        },
+        toolbox: {
+          show: true,
+          feature: {
+            dataView: { show: true, readOnly: false },
+            saveAsImage: {}
+          }
+        },
+        legend: {
+          type: "scroll",
+          orient: "vertical",
+          top: "middle",
+          right: 10,
+          data: []
+        },
+        series: [
+          {
+            name: "Category Breakdown",
+            type: "pie",
+            radius: ["30%", "50%"],
+            label: {
+              show: false,
+              position: "center"
+            },
+            itemStyle: {
+              normal: {
+                label: {
+                  show: true,
+                  formatter: function(data) {
+                    return `${data.percent}% (${data.value})`;
+                  }
+                },
+                labelLine: {
+                  show: true
+                }
+              },
+              emphasis: {
+                label: {
+                  show: true,
+                  position: "center",
+                  textStyle: {
+                    fontSize: "14",
+                    fontWeight: "normal"
+                  }
+                }
+              }
+            },
+            emphasis: {
+              label: {
+                show: true,
+                fontSize: "30",
+                fontWeight: "bold"
+              }
+            },
+            data: []
+          }
+        ]
+      };
+
+      categories.forEach((category, index) => {
+        option.legend.data.push(category);
+        option.series[0].data.push({
+          value: count[index],
+          name: category,
+          itemStyle: { color: colorHash(category) }
+        });
+      });
+
+      return option;
     }
   },
 
@@ -142,8 +301,6 @@ const graph_configs = {
       annotations: annotations
     }),
     data: () => CTFd.api.get_challenge_solve_percentages(),
-    fn: () =>
-      "CTFd_challenge_percentages_" + new Date().toISOString().slice(0, 19),
     format: response => {
       const data = response.data;
 
@@ -167,15 +324,90 @@ const graph_configs = {
         annotations.push(result);
       }
 
-      return [
-        {
-          type: "bar",
-          x: names,
-          y: percents,
-          orientation: "v"
+      const option = {
+        title: {
+          left: "center",
+          text: "Solve Percentages per Challenge"
         },
-        annotations
-      ];
+        tooltip: {
+          trigger: "item",
+          formatter: function(data) {
+            return `${data.name} - ${(Math.round(data.value * 10) / 10).toFixed(
+              1
+            )}%`;
+          }
+        },
+        toolbox: {
+          show: true,
+          feature: {
+            mark: { show: true },
+            dataView: { show: true, readOnly: false },
+            magicType: { show: true, type: ["line", "bar"] },
+            restore: { show: true },
+            saveAsImage: { show: true }
+          }
+        },
+        xAxis: {
+          name: "Challenge Name",
+          nameGap: 40,
+          nameLocation: "middle",
+          type: "category",
+          data: names,
+          axisLabel: {
+            interval: 0,
+            rotate: 50
+          }
+        },
+        yAxis: {
+          name: "Percentage of {0} (%)".format(
+            CTFd.config.userMode.charAt(0).toUpperCase() +
+              CTFd.config.userMode.slice(1)
+          ),
+          nameGap: 50,
+          nameLocation: "middle",
+          type: "value",
+          min: 0,
+          max: 100
+        },
+        dataZoom: [
+          {
+            show: false,
+            start: 0,
+            end: 100
+          },
+          {
+            type: "inside",
+            show: true,
+            start: 0,
+            end: 100
+          },
+          {
+            fillerColor: "rgba(233, 236, 241, 0.4)",
+            show: true,
+            right: 60,
+            yAxisIndex: 0,
+            width: 20
+          },
+          {
+            type: "slider",
+            fillerColor: "rgba(233, 236, 241, 0.4)",
+            top: 35,
+            height: 20,
+            show: true,
+            start: 0,
+            end: 100
+          }
+        ],
+        series: [
+          {
+            itemStyle: { normal: { color: "#1f76b4" } },
+            data: percents,
+            type: "bar"
+          }
+        ]
+      };
+
+      return option;
     }
   },
 
@@ -201,8 +433,6 @@ const graph_configs = {
       ) {
         return response.json();
       }),
-    fn: () =>
-      "CTFd_score_distribution_" + new Date().toISOString().slice(0, 19),
     format: response => {
       const data = response.data.brackets;
       const keys = [];
@@ -221,21 +451,81 @@ const graph_configs = {
         start = key;
       });
 
-      return [
-        {
-          type: "bar",
-          x: brackets,
-          y: sizes,
-          orientation: "v"
-        }
-      ];
+      const option = {
+        title: {
+          left: "center",
+          text: "Score Distribution"
+        },
+        tooltip: {
+          trigger: "item"
+        },
+        toolbox: {
+          show: true,
+          feature: {
+            mark: { show: true },
+            dataView: { show: true, readOnly: false },
+            magicType: { show: true, type: ["line", "bar"] },
+            restore: { show: true },
+            saveAsImage: { show: true }
+          }
+        },
+        xAxis: {
+          name: "Score Bracket",
+          nameGap: 40,
+          nameLocation: "middle",
+          type: "category",
+          data: brackets
+        },
+        yAxis: {
+          name: "Number of {0}".format(
+            CTFd.config.userMode.charAt(0).toUpperCase() +
+              CTFd.config.userMode.slice(1)
+          ),
+          nameGap: 50,
+          nameLocation: "middle",
+          type: "value"
+        },
+        dataZoom: [
+          {
+            show: false,
+            start: 0,
+            end: 100
+          },
+          {
+            type: "inside",
+            show: true,
+            start: 0,
+            end: 100
+          },
+          {
+            fillerColor: "rgba(233, 236, 241, 0.4)",
+            show: true,
+            right: 60,
+            yAxisIndex: 0,
+            width: 20
+          },
+          {
+            type: "slider",
+            fillerColor: "rgba(233, 236, 241, 0.4)",
+            top: 35,
+            height: 20,
+            show: true,
+            start: 0,
+            end: 100
+          }
+        ],
+        series: [
+          {
+            itemStyle: { normal: { color: "#1f76b4" } },
+            data: sizes,
+            type: "bar"
+          }
+        ]
+      };
+
+      return option;
     }
   }
-};
-
-const config = {
-  displaylogo: false,
-  responsive: true
 };
 
 const createGraphs = () => {
@@ -244,13 +534,19 @@ const createGraphs = () => {
 
     const $elem = $(key);
     $elem.empty();
-    $elem[0].fn = cfg.fn();
+
+    let chart = echarts.init(document.querySelector(key));
 
     cfg
       .data()
       .then(cfg.format)
-      .then(([data, annotations]) => {
-        Plotly.newPlot($elem[0], [data], cfg.layout(annotations), config);
+      .then(option => {
+        chart.setOption(option);
+        $(window).on("resize", function() {
+          if (chart != null && chart != undefined) {
+            chart.resize();
+          }
+        });
       });
   }
 };
@@ -258,13 +554,12 @@ const createGraphs = () => {
 function updateGraphs() {
   for (let key in graph_configs) {
     const cfg = graph_configs[key];
-    const $elem = $(key);
+    let chart = echarts.init(document.querySelector(key));
     cfg
       .data()
       .then(cfg.format)
-      .then(([data, annotations]) => {
-        // FIXME: Pass annotations
-        Plotly.react($elem[0], [data], cfg.layout(annotations), config);
+      .then(option => {
+        chart.setOption(option);
       });
   }
 }

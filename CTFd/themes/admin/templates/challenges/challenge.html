@@ -5,10 +5,6 @@
 {% endblock %}
 
 {% block content %}
-	{% include "admin/modals/hints/edit.html" %}
-	{% include "admin/modals/flags/create.html" %}
-	{% include "admin/modals/flags/edit.html" %}
-
 	<div class="modal fade" id="challenge-window" role="dialog">
 	</div>
 
@@ -29,6 +25,10 @@
 					<i class="btn-fa fas fa-file-alt fa-2x px-2" data-toggle="tooltip" data-placement="top"
 					   title="Preview Challenge"></i>
 				</a>
+				<a class="no-decoration" href="{{ url_for('admin.submissions_listing', submission_type='correct', field='challenge_id', q=challenge.id) }}">
+					<i class="btn-fa fas fa-tasks fa-2x px-2" data-toggle="tooltip" data-placement="top"
+					   title="Correct Submissions"></i>
+				</a>
 				<a class="delete-challenge">
 					<i class="btn-fa fas fa-trash-alt fa-2x px-2" data-toggle="tooltip" data-placement="top"
 					   title="Delete Challenge"></i>
@@ -41,7 +41,7 @@
 		<div class="row">
 			<div class="col-md-6">
 				<nav class="nav nav-tabs nav-fill" id="challenge-properties" role="tablist">
-					<a class="nav-item nav-link active" data-toggle="tab" href="#solves" role="tab" >Solves</a>
+					<a class="nav-item nav-link active" data-toggle="tab" href="#comments" role="tab" >Comments</a>
 					<a class="nav-item nav-link" data-toggle="tab" href="#flags" role="tab">Flags</a>
 					<a class="nav-item nav-link" data-toggle="tab" href="#files" role="tab">Files</a>
 					<a class="nav-item nav-link" data-toggle="tab" href="#tags" role="tab">Tags</a>
@@ -50,11 +50,14 @@
 				</nav>
 
 				<div class="tab-content" id="nav-tabContent">
-					<div class="tab-pane fade show active" id="solves" role="tabpanel">
+					<div class="tab-pane fade show active" id="comments" role="tabpanel">
 						<div class="row">
 							<div class="col-md-12">
-								<h3 class="text-center py-3 d-block">Solves</h3>
-								{% include "admin/modals/challenges/solves.html" %}
+								<h3 class="text-center py-3 d-block">
+									Comments
+								</h3>
+								<div id="comment-box">
+								</div>
 							</div>
 						</div>
 					</div>
@@ -118,6 +121,6 @@
         var CHALLENGE_ID = {{ challenge.id }};
         var CHALLENGE_NAME = {{ challenge.name | tojson }};
 	</script>
-	<script defer src="{{ url_for('views.themes', theme='admin', path='js/plotly.bundle.js') }}"></script>
+	<script defer src="{{ url_for('views.themes', theme='admin', path='js/echarts.bundle.js') }}"></script>
 	<script defer src="{{ request.script_root }}{{ update_script }}"></script>
 {% endblock %}

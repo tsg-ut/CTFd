@@ -3,6 +3,8 @@ import "../../utils";
 import CTFd from "../../CTFd";
 import "bootstrap/js/dist/modal";
 import $ from "jquery";
+import { copyToClipboard } from "../../utils";
+import { ezBadge, ezQuery, ezAlert } from "../../ezq";
 
 $(() => {
   if (window.team_captain) {
@@ -13,15 +15,83 @@ $(() => {
     $(".edit-captain").click(function() {
       $("#team-captain-modal").modal();
     });
+
+    $(".invite-members").click(function() {
+      CTFd.fetch("/api/v1/teams/me/members", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        }
+      })
+        .then(function(response) {
+          return response.json();
+        })
+        .then(function(response) {
+          if (response.success) {
+            let code = response.data.code;
+            let url = `${window.location.origin}${
+              CTFd.config.urlRoot
+            }/teams/invite?code=${code}`;
+            $("#team-invite-modal input[name=link]").val(url);
+            $("#team-invite-modal").modal();
+          }
+        });
+    });
+
+    $("#team-invite-link-copy").click(function(event) {
+      copyToClipboard(event, "#team-invite-link");
+    });
+
+    $(".disband-team").click(function() {
+      ezQuery({
+        title: "Disband Team",
+        body: "Are you sure you want to disband your team?",
+        success: function() {
+          CTFd.fetch("/api/v1/teams/me", {
+            method: "DELETE"
+          })
+            .then(function(response) {
+              return response.json();
+            })
+            .then(function(response) {
+              if (response.success) {
+                window.location.reload();
+              } else {
+                ezAlert({
+                  title: "Error",
+                  body: response.errors[""].join(" "),
+                  button: "Got it!"
+                });
+              }
+            });
+        }
+      });
+    });
   }
 
-  var form = $("#team-info-form");
+  let form = $("#team-info-form");
   form.submit(function(e) {
     e.preventDefault();
     $("#results").empty();
-    var params = $(this).serializeJSON();
-    var method = "PATCH";
-    var url = "/api/v1/teams/me";
+    let params = $(this).serializeJSON();
+
+    params.fields = [];
+
+    for (const property in params) {
+      if (property.match(/fields\[\d+\]/)) {
+        let field = {};
+        let id = parseInt(property.slice(7, -1));
+        field["field_id"] = id;
+        field["value"] = params[property];
+        params.fields.push(field);
+        delete params[property];
+      }
+    }
+
+    let method = "PATCH";
+    let url = "/api/v1/teams/me";
     CTFd.fetch(url, {
       method: method,
       credentials: "same-origin",
@@ -34,13 +104,19 @@ $(() => {
       if (response.status === 400) {
         response.json().then(function(object) {
           if (!object.success) {
+            const error_template =
+              '<div class="alert alert-danger alert-dismissable" role="alert">\n' +
+              '  <span class="sr-only">Error:</span>\n' +
+              "  {0}\n" +
+              '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
+              "</div>";
             Object.keys(object.errors).map(function(error) {
-              var i = form.find("input[name={0}]".format(error));
-              var input = $(i);
+              let i = form.find("input[name={0}]".format(error));
+              let input = $(i);
               input.addClass("input-filled-invalid");
               input.removeClass("input-filled-valid");
-              var error_msg = object.errors[error];
-              var alert = error_template.format(error_msg);
+              let error_msg = object.errors[error];
+              let alert = error_template.format(error_msg);
               $("#results").append(alert);
             });
           }
@@ -76,9 +152,9 @@ $(() => {
           window.location.reload();
         } else {
           $("#team-captain-form > #results").empty();
-          Object.keys(response.errors).forEach(function(key, index) {
+          Object.keys(response.errors).forEach(function(key, _index) {
             $("#team-captain-form > #results").append(
-              ezbadge({
+              ezBadge({
                 type: "error",
                 body: response.errors[key]
               })

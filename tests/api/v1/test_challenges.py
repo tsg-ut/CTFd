@@ -99,7 +99,7 @@ def test_api_challenges_get_verified_emails():
         gen_user(
             app.db,
             name="user_name",
-            email="verified_user@ctfd.io",
+            email="verified_user@examplectf.com",
             password="password",
             verified=True,
         )
@@ -244,6 +244,21 @@ def test_api_challenge_get_visibility_private():
     destroy_ctfd(app)
 
 
+def test_api_challenge_get_with_admin_only_account_visibility():
+    """Can a private user get /api/v1/challenges/<challenge_id> if account_visibility is admins_only"""
+    app = create_ctfd()
+    with app.app_context():
+        gen_challenge(app.db)
+        register_user(app)
+        client = login_as_user(app)
+        r = client.get("/api/v1/challenges/1")
+        assert r.status_code == 200
+        set_config("account_visibility", "admins")
+        r = client.get("/api/v1/challenges/1")
+        assert r.status_code == 200
+    destroy_ctfd(app)
+
+
 def test_api_challenge_get_ctftime_private():
     """Can a private user get /api/v1/challenges/<challenge_id> if ctftime is over"""
     app = create_ctfd()
@@ -279,7 +294,7 @@ def test_api_challenge_get_verified_emails():
         gen_user(
             app.db,
             name="user_name",
-            email="verified_user@ctfd.io",
+            email="verified_user@examplectf.com",
             password="password",
             verified=True,
         )
@@ -543,8 +558,8 @@ def test_api_challenge_get_solves_ctf_frozen():
     """Test users can only see challenge solves that happened before freeze time"""
     app = create_ctfd()
     with app.app_context():
-        register_user(app, name="user1", email="user1@ctfd.io")
-        register_user(app, name="user2", email="user2@ctfd.io")
+        register_user(app, name="user1", email="user1@examplectf.com")
+        register_user(app, name="user2", email="user2@examplectf.com")
 
         # Friday, October 6, 2017 12:00:00 AM GMT-04:00 DST
         set_config("freeze", "1507262400")
@@ -642,7 +657,7 @@ def test_api_challenge_get_solves_verified_emails():
         gen_user(
             app.db,
             name="user_name",
-            email="verified_user@ctfd.io",
+            email="verified_user@examplectf.com",
             password="password",
             verified=True,
         )

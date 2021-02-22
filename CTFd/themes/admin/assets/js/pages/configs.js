@@ -1,25 +1,34 @@
 import "./main";
 import "core/utils";
 import "bootstrap/js/dist/tab";
-import Moment from "moment-timezone";
-import moment from "moment-timezone";
+import dayjs from "dayjs";
+import advancedFormat from "dayjs/plugin/advancedFormat";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+import timezones from "../timezones";
 import CTFd from "core/CTFd";
 import { default as helpers } from "core/helpers";
 import $ from "jquery";
-import { ezQuery, ezProgressBar } from "core/ezq";
+import { ezQuery, ezProgressBar, ezAlert } from "core/ezq";
 import CodeMirror from "codemirror";
 import "codemirror/mode/htmlmixed/htmlmixed.js";
+import Vue from "vue/dist/vue.esm.browser";
+import FieldList from "../components/configs/fields/FieldList.vue";
+
+dayjs.extend(advancedFormat);
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 function loadTimestamp(place, timestamp) {
   if (typeof timestamp == "string") {
-    timestamp = parseInt(timestamp, 10);
+    timestamp = parseInt(timestamp, 10) * 1000;
   }
-  const m = Moment(timestamp * 1000);
-  $("#" + place + "-month").val(m.month() + 1); // Months are zero indexed (http://momentjs.com/docs/#/get-set/month/)
-  $("#" + place + "-day").val(m.date());
-  $("#" + place + "-year").val(m.year());
-  $("#" + place + "-hour").val(m.hour());
-  $("#" + place + "-minute").val(m.minute());
+  const d = dayjs(timestamp);
+  $("#" + place + "-month").val(d.month() + 1); // Months are zero indexed (https://day.js.org/docs/en/get-set/month)
+  $("#" + place + "-day").val(d.date());
+  $("#" + place + "-year").val(d.year());
+  $("#" + place + "-hour").val(d.hour());
+  $("#" + place + "-minute").val(d.minute());
   loadDateValues(place);
 }
 
@@ -29,21 +38,21 @@ function loadDateValues(place) {
   const year = $("#" + place + "-year").val();
   const hour = $("#" + place + "-hour").val();
   const minute = $("#" + place + "-minute").val();
-  const timezone = $("#" + place + "-timezone").val();
+  const timezone_string = $("#" + place + "-timezone").val();
 
   const utc = convertDateToMoment(month, day, year, hour, minute);
-  if (isNaN(utc.unix())) {
+  if (utc.unix() && month && day && year && hour && minute) {
+    $("#" + place).val(utc.unix());
+    $("#" + place + "-local").val(
+      utc.format("dddd, MMMM Do YYYY, h:mm:ss a z (zzz)")
+    );
+    $("#" + place + "-zonetime").val(
+      utc.tz(timezone_string).format("dddd, MMMM Do YYYY, h:mm:ss a z (zzz)")
+    );
+  } else {
     $("#" + place).val("");
     $("#" + place + "-local").val("");
     $("#" + place + "-zonetime").val("");
-  } else {
-    $("#" + place).val(utc.unix());
-    $("#" + place + "-local").val(
-      utc.local().format("dddd, MMMM Do YYYY, h:mm:ss a zz")
-    );
-    $("#" + place + "-zonetime").val(
-      utc.tz(timezone).format("dddd, MMMM Do YYYY, h:mm:ss a zz")
-    );
   }
 }
 
@@ -80,7 +89,7 @@ function convertDateToMoment(month, day, year, hour, minute) {
     ":" +
     min_str +
     ":00";
-  return Moment(date_string, Moment.ISO_8601);
+  return dayjs(date_string);
 }
 
 function updateConfigs(event) {
@@ -110,7 +119,7 @@ function updateConfigs(event) {
     }
   });
 
-  CTFd.api.patch_config_list({}, params).then(response => {
+  CTFd.api.patch_config_list({}, params).then(_response => {
     window.location.reload();
   });
 }
@@ -154,7 +163,53 @@ function removeLogo() {
       };
       CTFd.api
         .patch_config({ configKey: "ctf_logo" }, params)
-        .then(response => {
+        .then(_response => {
+          window.location.reload();
+        });
+    }
+  });
+}
+
+function smallIconUpload(event) {
+  event.preventDefault();
+  let form = event.target;
+  helpers.files.upload(form, {}, function(response) {
+    const f = response.data[0];
+    const params = {
+      value: f.location
+    };
+    CTFd.fetch("/api/v1/configs/ctf_small_icon", {
+      method: "PATCH",
+      body: JSON.stringify(params)
+    })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(response) {
+        if (response.success) {
+          window.location.reload();
+        } else {
+          ezAlert({
+            title: "Error!",
+            body: "Icon uploading failed!",
+            button: "Okay"
+          });
+        }
+      });
+  });
+}
+
+function removeSmallIcon() {
+  ezQuery({
+    title: "Remove logo",
+    body: "Are you sure you'd like to remove the small site icon?",
+    success: function() {
+      const params = {
+        value: null
+      };
+      CTFd.api
+        .patch_config({ configKey: "ctf_small_icon" }, params)
+        .then(_response => {
           window.location.reload();
         });
     }
@@ -182,7 +237,6 @@ function importConfig(event) {
     contentType: false,
     statusCode: {
       500: function(resp) {
-        console.log(resp.responseText);
         alert(resp.responseText);
       }
     },
@@ -199,7 +253,7 @@ function importConfig(event) {
       };
       return xhr;
     },
-    success: function(data) {
+    success: function(_data) {
       pg = ezProgressBar({
         target: pg,
         width: 100
@@ -216,14 +270,13 @@ function importConfig(event) {
 
 function exportConfig(event) {
   event.preventDefault();
-  const href = CTFd.config.urlRoot + "/admin/export";
   window.location.href = $(this).attr("href");
 }
 
 function insertTimezones(target) {
-  let current = $("<option>").text(moment.tz.guess());
+  let current = $("<option>").text(dayjs.tz.guess());
   $(target).append(current);
-  let tz_names = moment.tz.names();
+  let tz_names = timezones;
   for (let i = 0; i < tz_names.length; i++) {
     let tz = $("<option>").text(tz_names[i]);
     $(target).append(tz);
@@ -231,18 +284,89 @@ function insertTimezones(target) {
 }
 
 $(() => {
-  CodeMirror.fromTextArea(document.getElementById("theme-header"), {
-    lineNumbers: true,
-    lineWrapping: true,
-    mode: "htmlmixed",
-    htmlMode: true
+  const theme_header_editor = CodeMirror.fromTextArea(
+    document.getElementById("theme-header"),
+    {
+      lineNumbers: true,
+      lineWrapping: true,
+      mode: "htmlmixed",
+      htmlMode: true
+    }
+  );
+
+  const theme_footer_editor = CodeMirror.fromTextArea(
+    document.getElementById("theme-footer"),
+    {
+      lineNumbers: true,
+      lineWrapping: true,
+      mode: "htmlmixed",
+      htmlMode: true
+    }
+  );
+
+  const theme_settings_editor = CodeMirror.fromTextArea(
+    document.getElementById("theme-settings"),
+    {
+      lineNumbers: true,
+      lineWrapping: true,
+      mode: { name: "javascript", json: true }
+    }
+  );
+
+  // Handle refreshing codemirror when switching tabs.
+  // Better than the autorefresh approach b/c there's no flicker
+  $("a[href='#theme']").on("shown.bs.tab", function(_e) {
+    theme_header_editor.refresh();
+    theme_footer_editor.refresh();
+    theme_settings_editor.refresh();
   });
 
-  CodeMirror.fromTextArea(document.getElementById("theme-footer"), {
-    lineNumbers: true,
-    lineWrapping: true,
-    mode: "htmlmixed",
-    htmlMode: true
+  $(
+    "a[href='#legal'], a[href='#tos-config'], a[href='#privacy-policy-config']"
+  ).on("shown.bs.tab", function(_e) {
+    $("#tos-config .CodeMirror").each(function(i, el) {
+      el.CodeMirror.refresh();
+    });
+    $("#privacy-policy-config .CodeMirror").each(function(i, el) {
+      el.CodeMirror.refresh();
+    });
+  });
+
+  $("#theme-settings-modal form").submit(function(e) {
+    e.preventDefault();
+    theme_settings_editor
+      .getDoc()
+      .setValue(JSON.stringify($(this).serializeJSON(), null, 2));
+    $("#theme-settings-modal").modal("hide");
+  });
+
+  $("#theme-settings-button").click(function() {
+    let form = $("#theme-settings-modal form");
+    let data;
+
+    // Ignore invalid JSON data
+    try {
+      data = JSON.parse(theme_settings_editor.getValue());
+    } catch (e) {
+      data = {};
+    }
+
+    $.each(data, function(key, value) {
+      var ctrl = form.find(`[name='${key}']`);
+      switch (ctrl.prop("type")) {
+        case "radio":
+        case "checkbox":
+          ctrl.each(function() {
+            if ($(this).attr("value") == value) {
+              $(this).attr("checked", value);
+            }
+          });
+          break;
+        default:
+          ctrl.val(value);
+      }
+    });
+    $("#theme-settings-modal").modal();
   });
 
   insertTimezones($("#start-timezone"));
@@ -252,11 +376,13 @@ $(() => {
   $(".config-section > form:not(.form-upload)").submit(updateConfigs);
   $("#logo-upload").submit(uploadLogo);
   $("#remove-logo").click(removeLogo);
+  $("#ctf-small-icon-upload").submit(smallIconUpload);
+  $("#remove-small-icon").click(removeSmallIcon);
   $("#export-button").click(exportConfig);
   $("#import-button").click(importConfig);
   $("#config-color-update").click(function() {
     const hex_code = $("#config-color-picker").val();
-    const user_css = $("#theme-header").val();
+    const user_css = theme_header_editor.getValue();
     let new_css;
     if (user_css.length) {
       let css_vars = `theme-color: ${hex_code};`;
@@ -269,7 +395,7 @@ $(() => {
         `.jumbotron{background-color: var(--theme-color) !important;}\n` +
         `</style>\n`;
     }
-    $("#theme-header").val(new_css);
+    theme_header_editor.getDoc().setValue(new_css);
   });
 
   $(".start-date").change(function() {
@@ -302,4 +428,23 @@ $(() => {
       $("#mail_username_password").toggle(this.checked);
     })
     .change();
+
+  // Insert FieldList element for users
+  const fieldList = Vue.extend(FieldList);
+  let userVueContainer = document.createElement("div");
+  document.querySelector("#user-field-list").appendChild(userVueContainer);
+  new fieldList({
+    propsData: {
+      type: "user"
+    }
+  }).$mount(userVueContainer);
+
+  // Insert FieldList element for teams
+  let teamVueContainer = document.createElement("div");
+  document.querySelector("#team-field-list").appendChild(teamVueContainer);
+  new fieldList({
+    propsData: {
+      type: "team"
+    }
+  }).$mount(teamVueContainer);
 });

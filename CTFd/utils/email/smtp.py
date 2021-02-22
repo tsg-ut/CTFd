@@ -1,9 +1,6 @@
-import six
 import smtplib
-from email.mime.text import MIMEText
-
-if six.PY3:
-    from email.message import EmailMessage
+from email.message import EmailMessage
+from email.utils import formataddr
 from socket import timeout
 
 from CTFd.utils import get_app_config, get_config
@@ -26,7 +23,7 @@ def get_smtp(host, port, username=None, password=None, TLS=None, SSL=None, auth=
 def sendmail(addr, text, subject):
     ctf_name = get_config("ctf_name")
     mailfrom_addr = get_config("mailfrom_addr") or get_app_config("MAILFROM_ADDR")
-    mailfrom_addr = "{} <{}>".format(ctf_name, mailfrom_addr)
+    mailfrom_addr = formataddr((ctf_name, mailfrom_addr))
 
     data = {
         "host": get_config("mail_server") or get_app_config("MAIL_SERVER"),
@@ -52,20 +49,22 @@ def sendmail(addr, text, subject):
     try:
         smtp = get_smtp(**data)
 
-        if six.PY2:
-            msg = MIMEText(text)
-        else:
-            msg = EmailMessage()
-            msg.set_content(text)
+        msg = EmailMessage()
+        msg.set_content(text)
 
         msg["Subject"] = subject
         msg["From"] = mailfrom_addr
         msg["To"] = addr
 
-        if six.PY2:
-            smtp.sendmail(msg["From"], [msg["To"]], msg.as_string())
-        else:
+        # Check whether we are using an admin-defined SMTP server
+        custom_smtp = bool(get_config("mail_server"))
+
+        # We should only consider the MAILSENDER_ADDR value on servers defined in config
+        if custom_smtp:
             smtp.send_message(msg)
+        else:
+            mailsender_addr = get_app_config("MAILSENDER_ADDR")
+            smtp.send_message(msg, from_addr=mailsender_addr)
 
         smtp.quit()
         return True, "Email sent"

@@ -10,10 +10,11 @@
 	<link rel="stylesheet" href="{{ url_for('views.themes', theme='core', path='css/fonts.css') }}">
 	<link rel="stylesheet" href="{{ url_for('views.themes', theme='core', path='css/main.css') }}">
 	<link rel="stylesheet" href="{{ url_for('views.themes', theme='admin', path='css/admin.css') }}">
+	<link rel="stylesheet" href="{{ url_for('views.themes', theme='admin', path='css/codemirror.css') }}">
 	<script type="text/javascript">
 		var init = {
 			'urlRoot': "{{ request.script_root }}",
-			'csrfNonce': "{{ nonce }}",
+			'csrfNonce': "{{ Session.nonce }}",
 			'userMode': "{{ get_config('user_mode') }}",
 			'userId': {{ id if (id is defined) else 0 }},
 			'start': {{ get_config("start") | tojson }},
@@ -64,7 +65,7 @@
 						<div class="dropdown-menu">
 							<a class="dropdown-item" href="{{ url_for('admin.submissions_listing') }}">All Submissions</a>
 							<a class="dropdown-item" href="{{ url_for('admin.submissions_listing', submission_type='correct') }}">Correct Submissions</a>
-							<a class="dropdown-item" href="{{ url_for('admin.submissions_listing', submission_type='incorrect') }}">Wrong Submissions</a>
+							<a class="dropdown-item" href="{{ url_for('admin.submissions_listing', submission_type='incorrect') }}">Incorrect Submissions</a>
 						</div>
 					</li>
 					<li class="nav-item"><a class="nav-link" href="{{ url_for('admin.config') }}">Config</a></li>
@@ -99,7 +100,7 @@
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li class="nav-item">
-						<a class="nav-link" href="https://help.ctfd.io/" target="_blank">
+						<a class="nav-link" href="https://docs.ctfd.io/" target="_blank">
 							<i class="far fa-question-circle"></i>
 						</a>
 					</li>
@@ -108,20 +109,18 @@
 		</div>
 	</nav>
 
-	{% if get_config('version_latest') %}
-	<div class="container-fluid bg-warning text-center py-3">
-		<div class="row">
-			<div class="col-md-12">
-				<a class="btn btn-warning" href="{{ get_config('version_latest') }}">
-					A new CTFd version is available!
-				</a>
+	<main role="main">
+		{% if get_config('version_latest') %}
+		<div class="container-fluid bg-warning text-center py-3">
+			<div class="row">
+				<div class="col-md-12">
+					<a class="btn btn-warning" href="{{ get_config('version_latest') }}">
+						A new CTFd version is available!
+					</a>
+				</div>
 			</div>
 		</div>
-	</div>
-	{% endif %}
-
-
-	<main role="main">
+		{% endif %}
 		{% block content %}
 		{% endblock %}
 	</main>
@@ -142,6 +141,7 @@
 	<script defer src="{{ url_for('views.themes', theme='admin', path='js/vendor.bundle.js') }}"></script>
 	<script defer src="{{ url_for('views.themes', theme='admin', path='js/core.js') }}"></script>
 	<script defer src="{{ url_for('views.themes', theme='admin', path='js/helpers.js') }}"></script>
+	<script defer src="{{ url_for('views.themes', theme='admin', path='js/components.js') }}"></script>
 
 	{% block entrypoint %}
 	<script defer src="{{ url_for('views.themes', theme='admin', path='js/pages/main.js') }}"></script>

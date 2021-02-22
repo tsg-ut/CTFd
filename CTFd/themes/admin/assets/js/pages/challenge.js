@@ -5,30 +5,21 @@ import "bootstrap/js/dist/tab";
 import CTFd from "core/CTFd";
 import { htmlEntities } from "core/utils";
 import { ezQuery, ezAlert, ezToast } from "core/ezq";
-import nunjucks from "nunjucks";
 import { default as helpers } from "core/helpers";
-import { addFile, deleteFile } from "../challenges/files";
-import { addTag, deleteTag } from "../challenges/tags";
-import { addRequirement, deleteRequirement } from "../challenges/requirements";
-import {
-  showHintModal,
-  editHint,
-  deleteHint,
-  showEditHintModal
-} from "../challenges/hints";
-import {
-  addFlagModal,
-  editFlagModal,
-  deleteFlag,
-  flagTypeSelect
-} from "../challenges/flags";
-
-const md = CTFd.lib.markdown();
+import { bindMarkdownEditors } from "../styles";
+import Vue from "vue/dist/vue.esm.browser";
+import CommentBox from "../components/comments/CommentBox.vue";
+import FlagList from "../components/flags/FlagList.vue";
+import Requirements from "../components/requirements/Requirements.vue";
+import TagsList from "../components/tags/TagsList.vue";
+import ChallengeFilesList from "../components/files/ChallengeFilesList.vue";
+import HintsList from "../components/hints/HintsList.vue";
+import hljs from "highlight.js";
 
 const displayHint = data => {
   ezAlert({
     title: "Hint",
-    body: md.render(data.content),
+    body: data.html,
     button: "Got it!"
   });
 };
@@ -39,7 +30,7 @@ const loadHint = id => {
       displayHint(response.data);
       return;
     }
-    displayUnlock(id);
+    // displayUnlock(id);
   });
 };
 
@@ -120,8 +111,8 @@ function renderSubmissionResponse(response, cb) {
   }
   setTimeout(function() {
     $(".alert").slideUp();
-    $("#submit-key").removeClass("disabled-button");
-    $("#submit-key").prop("disabled", false);
+    $("#challenge-submit").removeClass("disabled-button");
+    $("#challenge-submit").prop("disabled", false);
   }, 3000);
 
   if (cb) {
@@ -132,42 +123,46 @@ function renderSubmissionResponse(response, cb) {
 function loadChalTemplate(challenge) {
   CTFd._internal.challenge = {};
   $.getScript(CTFd.config.urlRoot + challenge.scripts.view, function() {
-    $.get(CTFd.config.urlRoot + challenge.templates.create, function(
-      template_data
-    ) {
-      const template = nunjucks.compile(template_data);
-      $("#create-chal-entry-div").html(
-        template.render({
-          nonce: CTFd.config.csrfNonce,
-          script_root: CTFd.config.urlRoot
-        })
-      );
+    let template_data = challenge.create;
+    $("#create-chal-entry-div").html(template_data);
+    bindMarkdownEditors();
 
-      $.getScript(CTFd.config.urlRoot + challenge.scripts.create, function() {
-        $("#create-chal-entry-div form").submit(function(event) {
-          event.preventDefault();
-          const params = $("#create-chal-entry-div form").serializeJSON();
-          CTFd.fetch("/api/v1/challenges", {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(params)
+    $.getScript(CTFd.config.urlRoot + challenge.scripts.create, function() {
+      $("#create-chal-entry-div form").submit(function(event) {
+        event.preventDefault();
+        const params = $("#create-chal-entry-div form").serializeJSON();
+        CTFd.fetch("/api/v1/challenges", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(params)
+        })
+          .then(function(response) {
+            return response.json();
           })
-            .then(function(response) {
-              return response.json();
-            })
-            .then(function(response) {
-              if (response.success) {
-                $("#challenge-create-options #challenge_id").val(
-                  response.data.id
-                );
-                $("#challenge-create-options").modal();
+          .then(function(response) {
+            if (response.success) {
+              $("#challenge-create-options #challenge_id").val(
+                response.data.id
+              );
+              $("#challenge-create-options").modal();
+            } else {
+              let body = "";
+              for (const k in response.errors) {
+                body += response.errors[k].join("\n");
+                body += "\n";
               }
-            });
-        });
+
+              ezAlert({
+                title: "Error",
+                body: body,
+                button: "OK"
+              });
+            }
+          });
       });
     });
   });
@@ -210,7 +205,7 @@ function handleChallengeOptions(event) {
 
   Promise.all([
     // Save flag
-    new Promise(function(resolve, reject) {
+    new Promise(function(resolve, _reject) {
       if (flag_params.content.length == 0) {
         resolve();
         return;
@@ -228,7 +223,7 @@ function handleChallengeOptions(event) {
       });
     }),
     // Upload files
-    new Promise(function(resolve, reject) {
+    new Promise(function(resolve, _reject) {
       let form = event.target;
       let data = {
         challenge: params.challenge_id,
@@ -240,130 +235,104 @@ function handleChallengeOptions(event) {
       }
       resolve();
     })
-  ]).then(responses => {
+  ]).then(_responses => {
     save_challenge();
   });
 }
 
-function createChallenge(event) {
-  const challenge = $(this)
-    .find("option:selected")
-    .data("meta");
-  if (challenge === undefined) {
-    $("#create-chal-entry-div").empty();
-    return;
-  }
-  loadChalTemplate(challenge);
-}
-
 $(() => {
-  $(".preview-challenge").click(function(e) {
-    window.challenge = new Object();
+  $(".preview-challenge").click(function(_e) {
     CTFd._internal.challenge = {};
-    $.get(CTFd.config.urlRoot + "/api/v1/challenges/" + CHALLENGE_ID, function(
-      response
-    ) {
-      const challenge = CTFd._internal.challenge;
-      var challenge_data = response.data;
-      challenge_data["solves"] = null;
+    $.get(
+      CTFd.config.urlRoot + "/api/v1/challenges/" + window.CHALLENGE_ID,
+      function(response) {
+        // Preview should not show any solves
+        var challenge_data = response.data;
+        challenge_data["solves"] = null;
 
-      $.getScript(
-        CTFd.config.urlRoot + challenge_data.type_data.scripts.view,
-        function() {
-          $.get(
-            CTFd.config.urlRoot + challenge_data.type_data.templates.view,
-            function(template_data) {
-              $("#challenge-window").empty();
-              var template = nunjucks.compile(template_data);
-              // window.challenge.data = challenge_data;
-              // window.challenge.preRender();
-              challenge.data = challenge_data;
-              challenge.preRender();
+        $.getScript(
+          CTFd.config.urlRoot + challenge_data.type_data.scripts.view,
+          function() {
+            const challenge = CTFd._internal.challenge;
 
-              challenge_data["description"] = challenge.render(
-                challenge_data["description"]
-              );
-              challenge_data["script_root"] = CTFd.config.urlRoot;
+            // Inject challenge data into the plugin
+            challenge.data = response.data;
 
-              $("#challenge-window").append(template.render(challenge_data));
+            $("#challenge-window").empty();
 
-              $(".challenge-solves").click(function(e) {
-                getsolves($("#challenge-id").val());
-              });
-              $(".nav-tabs a").click(function(e) {
-                e.preventDefault();
-                $(this).tab("show");
-              });
+            // Call preRender function in plugin
+            challenge.preRender();
 
-              // Handle modal toggling
-              $("#challenge-window").on("hide.bs.modal", function(event) {
-                $("#submission-input").removeClass("wrong");
-                $("#submission-input").removeClass("correct");
-                $("#incorrect-key").slideUp();
-                $("#correct-key").slideUp();
-                $("#already-solved").slideUp();
-                $("#too-fast").slideUp();
-              });
+            $("#challenge-window").append(challenge_data.view);
 
-              $(".load-hint").on("click", function(event) {
-                loadHint($(this).data("hint-id"));
-              });
+            $("#challenge-window #challenge-input").addClass("form-control");
+            $("#challenge-window #challenge-submit").addClass(
+              "btn btn-md btn-outline-secondary float-right"
+            );
 
-              $("#submit-key").click(function(e) {
-                e.preventDefault();
-                $("#submit-key").addClass("disabled-button");
-                $("#submit-key").prop("disabled", true);
-                CTFd._internal.challenge
-                  .submit(true)
-                  .then(renderSubmissionResponse);
-                // Preview passed as true
-              });
+            $(".challenge-solves").hide();
+            $(".nav-tabs a").click(function(e) {
+              e.preventDefault();
+              $(this).tab("show");
+            });
 
-              $("#submission-input").keyup(function(event) {
-                if (event.keyCode == 13) {
-                  $("#submit-key").click();
-                }
-              });
+            // Handle modal toggling
+            $("#challenge-window").on("hide.bs.modal", function(_event) {
+              $("#challenge-input").removeClass("wrong");
+              $("#challenge-input").removeClass("correct");
+              $("#incorrect-key").slideUp();
+              $("#correct-key").slideUp();
+              $("#already-solved").slideUp();
+              $("#too-fast").slideUp();
+            });
 
-              $(".input-field").bind({
-                focus: function() {
-                  $(this)
-                    .parent()
-                    .addClass("input--filled");
-                  $label = $(this).siblings(".input-label");
-                },
-                blur: function() {
-                  if ($(this).val() === "") {
-                    $(this)
-                      .parent()
-                      .removeClass("input--filled");
-                    $label = $(this).siblings(".input-label");
-                    $label.removeClass("input--hide");
-                  }
-                }
+            $(".load-hint").on("click", function(_event) {
+              loadHint($(this).data("hint-id"));
+            });
+
+            $("#challenge-submit").click(function(e) {
+              e.preventDefault();
+              $("#challenge-submit").addClass("disabled-button");
+              $("#challenge-submit").prop("disabled", true);
+              CTFd._internal.challenge
+                .submit(true)
+                .then(renderSubmissionResponse);
+              // Preview passed as true
+            });
+
+            $("#challenge-input").keyup(function(event) {
+              if (event.keyCode == 13) {
+                $("#challenge-submit").click();
+              }
+            });
+
+            challenge.postRender();
+
+            $("#challenge-window")
+              .find("pre code")
+              .each(function(_idx) {
+                hljs.highlightBlock(this);
               });
 
-              challenge.postRender();
-              window.location.replace(
-                window.location.href.split("#")[0] + "#preview"
-              );
+            window.location.replace(
+              window.location.href.split("#")[0] + "#preview"
+            );
 
-              $("#challenge-window").modal();
-            }
-          );
-        }
-      );
-    });
+            $("#challenge-window").modal();
+          }
+        );
+      }
+    );
   });
 
-  $(".delete-challenge").click(function(e) {
+  $(".delete-challenge").click(function(_e) {
     ezQuery({
       title: "Delete Challenge",
       body: "Are you sure you want to delete {0}".format(
-        "<strong>" + htmlEntities(CHALLENGE_NAME) + "</strong>"
+        "<strong>" + htmlEntities(window.CHALLENGE_NAME) + "</strong>"
       ),
       success: function() {
-        CTFd.fetch("/api/v1/challenges/" + CHALLENGE_ID, {
+        CTFd.fetch("/api/v1/challenges/" + window.CHALLENGE_ID, {
           method: "DELETE"
         })
           .then(function(response) {
@@ -382,7 +351,7 @@ $(() => {
     e.preventDefault();
     var params = $(e.target).serializeJSON(true);
 
-    CTFd.fetch("/api/v1/challenges/" + CHALLENGE_ID + "/flags", {
+    CTFd.fetch("/api/v1/challenges/" + window.CHALLENGE_ID + "/flags", {
       method: "GET",
       credentials: "same-origin",
       headers: {
@@ -395,7 +364,7 @@ $(() => {
       })
       .then(function(response) {
         let update_challenge = function() {
-          CTFd.fetch("/api/v1/challenges/" + CHALLENGE_ID, {
+          CTFd.fetch("/api/v1/challenges/" + window.CHALLENGE_ID, {
             method: "PATCH",
             credentials: "same-origin",
             headers: {
@@ -428,6 +397,18 @@ $(() => {
                   title: "Success",
                   body: "Your challenge has been updated!"
                 });
+              } else {
+                let body = "";
+                for (const k in response.errors) {
+                  body += response.errors[k].join("\n");
+                  body += "\n";
+                }
+
+                ezAlert({
+                  title: "Error",
+                  body: body,
+                  button: "OK"
+                });
               }
             });
         };
@@ -436,7 +417,7 @@ $(() => {
           ezQuery({
             title: "Missing Flags",
             body:
-              "This challenge does not have any flags meaning it is unsolveable. Are you sure you'd like to update this challenge?",
+              "This challenge does not have any flags meaning it may be unsolveable. Are you sure you'd like to update this challenge?",
             success: update_challenge
           });
         } else {
@@ -447,49 +428,75 @@ $(() => {
 
   $("#challenge-create-options form").submit(handleChallengeOptions);
 
-  $("#tags-add-input").keyup(addTag);
-  $(".delete-tag").click(deleteTag);
+  // Load FlagList component
+  if (document.querySelector("#challenge-flags")) {
+    const flagList = Vue.extend(FlagList);
+    let vueContainer = document.createElement("div");
+    document.querySelector("#challenge-flags").appendChild(vueContainer);
+    new flagList({
+      propsData: { challenge_id: window.CHALLENGE_ID }
+    }).$mount(vueContainer);
+  }
 
-  $("#prerequisite-add-form").submit(addRequirement);
-  $(".delete-requirement").click(deleteRequirement);
+  // Load TagsList component
+  if (document.querySelector("#challenge-tags")) {
+    const tagList = Vue.extend(TagsList);
+    let vueContainer = document.createElement("div");
+    document.querySelector("#challenge-tags").appendChild(vueContainer);
+    new tagList({
+      propsData: { challenge_id: window.CHALLENGE_ID }
+    }).$mount(vueContainer);
+  }
 
-  $("#file-add-form").submit(addFile);
-  $(".delete-file").click(deleteFile);
+  // Load Requirements component
+  if (document.querySelector("#prerequisite-add-form")) {
+    const reqsComponent = Vue.extend(Requirements);
+    let vueContainer = document.createElement("div");
+    document.querySelector("#prerequisite-add-form").appendChild(vueContainer);
+    new reqsComponent({
+      propsData: { challenge_id: window.CHALLENGE_ID }
+    }).$mount(vueContainer);
+  }
 
-  $("#hint-add-button").click(showHintModal);
-  $(".delete-hint").click(deleteHint);
-  $(".edit-hint").click(showEditHintModal);
-  $("#hint-edit-form").submit(editHint);
+  // Load ChallengeFilesList component
+  if (document.querySelector("#challenge-files")) {
+    const challengeFilesList = Vue.extend(ChallengeFilesList);
+    let vueContainer = document.createElement("div");
+    document.querySelector("#challenge-files").appendChild(vueContainer);
+    new challengeFilesList({
+      propsData: { challenge_id: window.CHALLENGE_ID }
+    }).$mount(vueContainer);
+  }
 
-  $("#flag-add-button").click(addFlagModal);
-  $(".delete-flag").click(deleteFlag);
-  $("#flags-create-select").change(flagTypeSelect);
-  $(".edit-flag").click(editFlagModal);
+  // Load HintsList component
+  if (document.querySelector("#challenge-hints")) {
+    const hintsList = Vue.extend(HintsList);
+    let vueContainer = document.createElement("div");
+    document.querySelector("#challenge-hints").appendChild(vueContainer);
+    new hintsList({
+      propsData: { challenge_id: window.CHALLENGE_ID }
+    }).$mount(vueContainer);
+  }
+
+  // Because this JS is shared by a few pages,
+  // we should only insert the CommentBox if it's actually in use
+  if (document.querySelector("#comment-box")) {
+    // Insert CommentBox element
+    const commentBox = Vue.extend(CommentBox);
+    let vueContainer = document.createElement("div");
+    document.querySelector("#comment-box").appendChild(vueContainer);
+    new commentBox({
+      propsData: { type: "challenge", id: window.CHALLENGE_ID }
+    }).$mount(vueContainer);
+  }
 
   $.get(CTFd.config.urlRoot + "/api/v1/challenges/types", function(response) {
-    $("#create-chals-select").empty();
     const data = response.data;
-    const chal_type_amt = Object.keys(data).length;
-    if (chal_type_amt > 1) {
-      const option = "<option> -- </option>";
-      $("#create-chals-select").append(option);
-      for (const key in data) {
-        const challenge = data[key];
-        const option = $("<option/>");
-        option.attr("value", challenge.type);
-        option.text(challenge.name);
-        option.data("meta", challenge);
-        $("#create-chals-select").append(option);
-      }
-      $("#create-chals-select-div").show();
-      $("#create-chals-select").val("standard");
-      loadChalTemplate(data["standard"]);
-    } else if (chal_type_amt == 1) {
-      const key = Object.keys(data)[0];
-      $("#create-chals-select").empty();
-      loadChalTemplate(data[key]);
-    }
-  });
+    loadChalTemplate(data["standard"]);
 
-  $("#create-chals-select").change(createChallenge);
+    $("#create-chals-select input[name=type]").change(function() {
+      let challenge = data[this.value];
+      loadChalTemplate(challenge);
+    });
+  });
 });

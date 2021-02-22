@@ -1,13 +1,8 @@
-import os
-
-import six
-from flask import current_app as app
-from flask import render_template, render_template_string, request, url_for
+from flask import abort, render_template, request, url_for
 
 from CTFd.admin import admin
 from CTFd.models import Challenges, Flags, Solves
-from CTFd.plugins.challenges import get_chal_class
-from CTFd.utils import binary_type
+from CTFd.plugins.challenges import CHALLENGE_CLASSES, get_chal_class
 from CTFd.utils.decorators import admins_only
 
 
@@ -49,16 +44,18 @@ def challenges_detail(challenge_id):
         .all()
     )
     flags = Flags.query.filter_by(challenge_id=challenge.id).all()
-    challenge_class = get_chal_class(challenge.type)
 
-    with open(
-        os.path.join(app.root_path, challenge_class.templates["update"].lstrip("/")),
-        "rb",
-    ) as update:
-        tpl = update.read()
-        if six.PY3 and isinstance(tpl, binary_type):
-            tpl = tpl.decode("utf-8")
-        update_j2 = render_template_string(tpl, challenge=challenge)
+    try:
+        challenge_class = get_chal_class(challenge.type)
+    except KeyError:
+        abort(
+            500,
+            f"The underlying challenge type ({challenge.type}) is not installed. This challenge can not be loaded.",
+        )
+
+    update_j2 = render_template(
+        challenge_class.templates["update"].lstrip("/"), challenge=challenge
+    )
 
     update_script = url_for(
         "views.static_html", route=challenge_class.scripts["update"].lstrip("/")
@@ -77,4 +74,5 @@ def challenges_detail(challenge_id):
 @admin.route("/admin/challenges/new")
 @admins_only
 def challenges_new():
-    return render_template("admin/challenges/new.html")
+    types = CHALLENGE_CLASSES.keys()
+    return render_template("admin/challenges/new.html", types=types)

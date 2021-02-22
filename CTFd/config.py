@@ -1,8 +1,55 @@
+import configparser
 import os
+from distutils.util import strtobool
 
-""" GENERATE SECRET KEY """
 
-if not os.getenv("SECRET_KEY"):
+class EnvInterpolation(configparser.BasicInterpolation):
+    """Interpolation which expands environment variables in values."""
+
+    def before_get(self, parser, section, option, value, defaults):
+        value = super().before_get(parser, section, option, value, defaults)
+        envvar = os.getenv(option)
+        if value == "" and envvar:
+            return process_string_var(envvar)
+        else:
+            return value
+
+
+def process_string_var(value):
+    if value == "":
+        return None
+
+    if value.isdigit():
+        return int(value)
+    elif value.replace(".", "", 1).isdigit():
+        return float(value)
+
+    try:
+        return bool(strtobool(value))
+    except ValueError:
+        return value
+
+
+def process_boolean_str(value):
+    if type(value) is bool:
+        return value
+
+    if value is None:
+        return False
+
+    if value == "":
+        return None
+
+    return bool(strtobool(value))
+
+
+def empty_str_cast(value, default=None):
+    if value == "":
+        return default
+    return value
+
+
+def gen_secret_key():
     # Attempt to read the secret from the secret file
     # This will fail if the secret has not been written
     try:
@@ -21,88 +68,55 @@ if not os.getenv("SECRET_KEY"):
                 secret.flush()
         except (OSError, IOError):
             pass
+    return key
 
 
-""" SERVER SETTINGS """
+config_ini = configparser.ConfigParser(interpolation=EnvInterpolation())
+config_ini.optionxform = str  # Makes the key value case-insensitive
+path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.ini")
+config_ini.read(path)
 
 
-class Config(object):
-    """
-    CTFd Configuration Object
-    """
+# fmt: off
+class ServerConfig(object):
+    SECRET_KEY: str = empty_str_cast(config_ini["server"]["SECRET_KEY"]) \
+        or gen_secret_key()
 
-    """
-    === REQUIRED SETTINGS ===
+    DATABASE_URL: str = empty_str_cast(config_ini["server"]["DATABASE_URL"]) \
+        or f"sqlite:///{os.path.dirname(os.path.abspath(__file__))}/ctfd.db"
 
-    SECRET_KEY:
-        The secret value used to creation sessions and sign strings. This should be set to a random string. In the
-        interest of ease, CTFd will automatically create a secret key file for you. If you wish to add this secret key
-        to your instance you should hard code this value to a random static value.
-
-        You can also remove .ctfd_secret_key from the .gitignore file and commit this file into whatever repository
-        you are using.
-
-        http://flask.pocoo.org/docs/latest/quickstart/#sessions
-
-    DATABASE_URL:
-        The URI that specifies the username, password, hostname, port, and database of the server
-        used to hold the CTFd database.
-
-        e.g. mysql+pymysql://root:<YOUR_PASSWORD_HERE>@localhost/ctfd
-
-    CACHE_TYPE:
-        Specifies how CTFd should cache configuration values. If CACHE_TYPE is set to 'redis', CTFd will make use
-        of the REDIS_URL specified in environment variables. You can also choose to hardcode the REDIS_URL here.
-
-        It is important that you specify some sort of cache as CTFd uses it to store values received from the database. If
-        no cache is specified, CTFd will default to a simple per-worker cache. The simple cache cannot be effectively used
-        with multiple workers.
-
-    REDIS_URL is the URL to connect to a Redis server.
-        e.g. redis://user:password@localhost:6379
-        http://pythonhosted.org/Flask-Caching/#configuring-flask-caching
-    """
-    SECRET_KEY = os.getenv("SECRET_KEY") or key
-    DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///{}/ctfd.db".format(
-        os.path.dirname(os.path.abspath(__file__))
-    )
-    REDIS_URL = os.getenv("REDIS_URL")
+    REDIS_URL: str = empty_str_cast(config_ini["server"]["REDIS_URL"])
 
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     CACHE_REDIS_URL = REDIS_URL
     if CACHE_REDIS_URL:
-        CACHE_TYPE = "redis"
+        CACHE_TYPE: str = "redis"
     else:
-        CACHE_TYPE = "filesystem"
-        CACHE_DIR = os.path.join(
+        CACHE_TYPE: str = "filesystem"
+        CACHE_DIR: str = os.path.join(
             os.path.dirname(__file__), os.pardir, ".data", "filesystem_cache"
         )
-        CACHE_THRESHOLD = (
-            0
-        )  # Override the threshold of cached values on the filesystem. The default is 500. Don't change unless you know what you're doing.
+        # Override the threshold of cached values on the filesystem. The default is 500. Don't change unless you know what you're doing.
+        CACHE_THRESHOLD: int = 0
+
+    # === SECURITY ===
+    SESSION_COOKIE_HTTPONLY: bool = config_ini["security"].getboolean("SESSION_COOKIE_HTTPONLY", fallback=True)
+
+    SESSION_COOKIE_SAMESITE: str = empty_str_cast(config_ini["security"]["SESSION_COOKIE_SAMESITE"]) \
+        or "Lax"
+
+    PERMANENT_SESSION_LIFETIME: int = config_ini["security"].getint("PERMANENT_SESSION_LIFETIME") \
+        or 604800
 
     """
-    === SECURITY ===
-
-    SESSION_COOKIE_HTTPONLY:
-        Controls if cookies should be set with the HttpOnly flag.
-
-    PERMANENT_SESSION_LIFETIME:
-        The lifetime of a session. The default is 604800 seconds.
-
     TRUSTED_PROXIES:
-        Defines a set of regular expressions used for finding a user's IP address if the CTFd instance
-        is behind a proxy. If you are running a CTF and users are on the same network as you, you may choose to remove
-        some proxies from the list.
+    Defines a set of regular expressions used for finding a user's IP address if the CTFd instance
+    is behind a proxy. If you are running a CTF and users are on the same network as you, you may choose to remove
+    some proxies from the list.
 
-        CTFd only uses IP addresses for cursory tracking purposes. It is ill-advised to do anything complicated based
-        solely on IP addresses unless you know what you are doing.
+    CTFd only uses IP addresses for cursory tracking purposes. It is ill-advised to do anything complicated based
+    solely on IP addresses unless you know what you are doing.
     """
-    SESSION_COOKIE_HTTPONLY = not os.getenv("SESSION_COOKIE_HTTPONLY")  # Defaults True
-    SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE") or "Lax"
-    PERMANENT_SESSION_LIFETIME = int(
-        os.getenv("PERMANENT_SESSION_LIFETIME") or 604800
-    )  # 7 days in seconds
     TRUSTED_PROXIES = [
         r"^127\.0\.0\.1$",
         # Remove the following proxies if you do not trust the local network
@@ -115,140 +129,73 @@ class Config(object):
         r"^192\.168\.",
     ]
 
-    """
-    === EMAIL ===
+    # === EMAIL ===
+    MAILFROM_ADDR: str = config_ini["email"]["MAILFROM_ADDR"] \
+        or "noreply@examplectf.com"
 
-    MAILFROM_ADDR:
-        The email address that emails are sent from if not overridden in the configuration panel.
+    MAIL_SERVER: str = empty_str_cast(config_ini["email"]["MAIL_SERVER"])
 
-    MAIL_SERVER:
-        The mail server that emails are sent from if not overriden in the configuration panel.
+    MAIL_PORT: int = empty_str_cast(config_ini["email"]["MAIL_PORT"])
 
-    MAIL_PORT:
-        The mail port that emails are sent from if not overriden in the configuration panel.
+    MAIL_USEAUTH: bool = process_boolean_str(config_ini["email"]["MAIL_USEAUTH"])
 
-    MAIL_USEAUTH
-        Whether or not to use username and password to authenticate to the SMTP server
+    MAIL_USERNAME: str = empty_str_cast(config_ini["email"]["MAIL_USERNAME"])
 
-    MAIL_USERNAME
-        The username used to authenticate to the SMTP server if MAIL_USEAUTH is defined
+    MAIL_PASSWORD: str = empty_str_cast(config_ini["email"]["MAIL_PASSWORD"])
 
-    MAIL_PASSWORD
-        The password used to authenticate to the SMTP server if MAIL_USEAUTH is defined
+    MAIL_TLS: bool = process_boolean_str(config_ini["email"]["MAIL_TLS"])
 
-    MAIL_TLS
-        Whether to connect to the SMTP server over TLS
+    MAIL_SSL: bool = process_boolean_str(config_ini["email"]["MAIL_SSL"])
 
-    MAIL_SSL
-        Whether to connect to the SMTP server over SSL
+    MAILSENDER_ADDR: str = empty_str_cast(config_ini["email"]["MAILSENDER_ADDR"])
 
-    MAILGUN_API_KEY
-        Mailgun API key to send email over Mailgun
+    MAILGUN_API_KEY: str = empty_str_cast(config_ini["email"]["MAILGUN_API_KEY"])
 
-    MAILGUN_BASE_URL
-        Mailgun base url to send email over Mailgun
-    """
-    MAILFROM_ADDR = os.getenv("MAILFROM_ADDR") or "noreply@ctfd.io"
-    MAIL_SERVER = os.getenv("MAIL_SERVER") or None
-    MAIL_PORT = os.getenv("MAIL_PORT")
-    MAIL_USEAUTH = os.getenv("MAIL_USEAUTH")
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME")
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
-    MAIL_TLS = os.getenv("MAIL_TLS") or False
-    MAIL_SSL = os.getenv("MAIL_SSL") or False
-    MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
-    MAILGUN_BASE_URL = os.getenv("MAILGUN_BASE_URL")
+    MAILGUN_BASE_URL: str = empty_str_cast(config_ini["email"]["MAILGUN_API_KEY"])
 
-    """
-    === LOGS ===
-    LOG_FOLDER:
-        The location where logs are written. These are the logs for CTFd key submissions, registrations, and logins.
-        The default location is the CTFd/logs folder.
-    """
-    LOG_FOLDER = os.getenv("LOG_FOLDER") or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "logs"
-    )
+    # === LOGS ===
+    LOG_FOLDER: str = empty_str_cast(config_ini["logs"]["LOG_FOLDER"]) \
+        or os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 
-    """
-    === UPLOADS ===
+    # === UPLOADS ===
+    UPLOAD_PROVIDER: str = empty_str_cast(config_ini["uploads"]["UPLOAD_PROVIDER"]) \
+        or "filesystem"
 
-    UPLOAD_PROVIDER:
-        Specifies the service that CTFd should use to store files.
+    UPLOAD_FOLDER: str = empty_str_cast(config_ini["uploads"]["UPLOAD_FOLDER"]) \
+        or os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 
-    UPLOAD_FOLDER:
-        The location where files are uploaded. The default destination is the CTFd/uploads folder.
-
-    AWS_ACCESS_KEY_ID:
-        AWS access token used to authenticate to the S3 bucket.
-
-    AWS_SECRET_ACCESS_KEY:
-        AWS secret token used to authenticate to the S3 bucket.
-
-    AWS_S3_BUCKET:
-        The unique identifier for your S3 bucket.
-
-    AWS_S3_ENDPOINT_URL:
-        A URL pointing to a custom S3 implementation.
-
-    """
-    UPLOAD_PROVIDER = os.getenv("UPLOAD_PROVIDER") or "filesystem"
-    UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER") or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "uploads"
-    )
     if UPLOAD_PROVIDER == "s3":
-        AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-        AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-        AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
-        AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL")
+        AWS_ACCESS_KEY_ID: str = empty_str_cast(config_ini["uploads"]["AWS_ACCESS_KEY_ID"])
 
-    """
-    === OPTIONAL ===
+        AWS_SECRET_ACCESS_KEY: str = empty_str_cast(config_ini["uploads"]["AWS_SECRET_ACCESS_KEY"])
 
-    REVERSE_PROXY:
-        Specifies whether CTFd is behind a reverse proxy or not. Set to True if using a reverse proxy like nginx.
-        You can also specify a comma seperated set of numbers specifying the reverse proxy configuration settings.
+        AWS_S3_BUCKET: str = empty_str_cast(config_ini["uploads"]["AWS_S3_BUCKET"])
 
-        See https://werkzeug.palletsprojects.com/en/0.15.x/middleware/proxy_fix/#werkzeug.middleware.proxy_fix.ProxyFix.
-        For example to configure `x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1` specify `1,1,1,1,1`.
+        AWS_S3_ENDPOINT_URL: str = empty_str_cast(config_ini["uploads"]["AWS_S3_ENDPOINT_URL"])
 
-        Alternatively if you specify `true` CTFd will default to the above behavior with all proxy settings set to 1.
+    # === OPTIONAL ===
+    REVERSE_PROXY: bool = empty_str_cast(config_ini["optional"]["REVERSE_PROXY"], default=False)
 
-    TEMPLATES_AUTO_RELOAD:
-        Specifies whether Flask should check for modifications to templates and reload them automatically.
+    TEMPLATES_AUTO_RELOAD: bool = empty_str_cast(config_ini["optional"]["TEMPLATES_AUTO_RELOAD"], default=True)
 
-    SQLALCHEMY_TRACK_MODIFICATIONS:
-        Automatically disabled to suppress warnings and save memory. You should only enable this if you need it.
+    SQLALCHEMY_TRACK_MODIFICATIONS: bool = empty_str_cast(config_ini["optional"]["SQLALCHEMY_TRACK_MODIFICATIONS"], default=False)
 
-    SWAGGER_UI:
-        Enable the Swagger UI endpoint at /api/v1/
+    SWAGGER_UI: bool = empty_str_cast(config_ini["optional"]["SWAGGER_UI"], default=False)
 
-    UPDATE_CHECK:
-        Specifies whether or not CTFd will check whether or not there is a new version of CTFd
+    SWAGGER_UI_ENDPOINT: str = "/" if SWAGGER_UI else None
 
-    APPLICATION_ROOT:
-        Specifies what path CTFd is mounted under. It can be used to run CTFd in a subdirectory.
-        Example: /ctfd
+    UPDATE_CHECK: bool = empty_str_cast(config_ini["optional"]["UPDATE_CHECK"], default=True)
 
-    SERVER_SENT_EVENTS:
-        Specifies whether or not to enable to server-sent events based Notifications system.
+    APPLICATION_ROOT: str = empty_str_cast(config_ini["optional"]["APPLICATION_ROOT"], default="/")
 
-    SQLALCHEMY_ENGINE_OPTIONS:
-        A dictionary of keyword args to send to the underlying SQLAlchemy create_engine() call.
-        https://docs.sqlalchemy.org/en/13/core/engines.html#sqlalchemy.create_engine
-        https://flask-sqlalchemy.palletsprojects.com/en/2.x/config/#configuration-keys
-    """
-    REVERSE_PROXY = os.getenv("REVERSE_PROXY") or False
-    TEMPLATES_AUTO_RELOAD = not os.getenv("TEMPLATES_AUTO_RELOAD")  # Defaults True
-    SQLALCHEMY_TRACK_MODIFICATIONS = (
-        os.getenv("SQLALCHEMY_TRACK_MODIFICATIONS") is not None
-    )  # Defaults False
-    SWAGGER_UI = "/" if os.getenv("SWAGGER_UI") is not None else False  # Defaults False
-    UPDATE_CHECK = not os.getenv("UPDATE_CHECK")  # Defaults True
-    APPLICATION_ROOT = os.getenv("APPLICATION_ROOT") or "/"
-    SERVER_SENT_EVENTS = not os.getenv("SERVER_SENT_EVENTS")  # Defaults True
+    SERVER_SENT_EVENTS: bool = empty_str_cast(config_ini["optional"]["SERVER_SENT_EVENTS"], default=True)
+
+    HTML_SANITIZATION: bool = empty_str_cast(config_ini["optional"]["HTML_SANITIZATION"], default=False)
+
     if DATABASE_URL.startswith("sqlite") is False:
         SQLALCHEMY_ENGINE_OPTIONS = {
-            "max_overflow": int(os.getenv("SQLALCHEMY_MAX_OVERFLOW", 20))
+            "max_overflow": int(empty_str_cast(config_ini["optional"]["SQLALCHEMY_MAX_OVERFLOW"], default=20)),  # noqa: E131
+            "pool_pre_ping": empty_str_cast(config_ini["optional"]["SQLALCHEMY_POOL_PRE_PING"], default=True),  # noqa: E131
         }
 
     """
@@ -263,8 +210,8 @@ class Config(object):
         OAUTH_PROVIDER = "ctftime"
         OAUTH_CALLBACK_ENDPOINT = "https://yourctfd-domain.com/redirect"
     """
-    OAUTH_PROVIDER = os.getenv("OAUTH_PROVIDER") or "mlc"
-    OAUTH_CALLBACK_ENDPOINT = os.getenv("OAUTH_CALLBACK_ENDPOINT") or ""
+    OAUTH_PROVIDER: str = empty_str_cast(config_ini["oauth"]["OAUTH_PROVIDER"], default="mlc")
+    OAUTH_CALLBACK_ENDPOINT: str = empty_str_cast(config_ini["oauth"]["OAUTH_CALLBACK_ENDPOINT"], default="")
 
     if OAUTH_PROVIDER == "mlc":
         OAUTH_TOKEN_ENDPOINT = "https://auth.majorleaguecyber.org/oauth/token"
@@ -280,17 +227,25 @@ class Config(object):
 
     OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID")
     OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET")
+# fmt: on
 
 
-class TestingConfig(Config):
+class TestingConfig(ServerConfig):
     SECRET_KEY = "AAAAAAAAAAAAAAAAAAAA"
     PRESERVE_CONTEXT_ON_EXCEPTION = False
     TESTING = True
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = os.getenv("TESTING_DATABASE_URL") or "sqlite://"
+    MAIL_SERVER = os.getenv("TESTING_MAIL_SERVER")
     SERVER_NAME = "localhost"
     UPDATE_CHECK = False
     REDIS_URL = None
     CACHE_TYPE = "simple"
     CACHE_THRESHOLD = 500
     SAFE_MODE = True
+
+
+# Actually initialize ServerConfig to allow us to add more attributes on
+Config = ServerConfig()
+for k, v in config_ini.items("extra"):
+    setattr(Config, k, process_string_var(v))

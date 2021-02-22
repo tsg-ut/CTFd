@@ -18,9 +18,15 @@
 					<a class="nav-link rounded-0 active" href="#appearance" role="tab" data-toggle="tab">Appearance</a>
 				</li>
 				<li class="nav-item">
+					<a class="nav-link rounded-0" href="#theme" role="tab" data-toggle="tab">Theme</a>
+				</li>
+				<li class="nav-item">
 					<a class="nav-link rounded-0" href="#accounts" role="tab" data-toggle="tab">Accounts</a>
 				</li>
                 {% if integrations.mlc() %}
+				<li class="nav-item">
+					<a class="nav-link rounded-0" href="#fields" role="tab" data-toggle="tab">Custom Fields</a>
+				</li>
 				<li class="nav-item">
 					<a class="nav-link rounded-0" href="#mlc" role="tab" data-toggle="tab">MajorLeagueCyber</a>
 				</li>
@@ -38,6 +44,9 @@
 				</li>
 				<li class="nav-item">
 					<a class="nav-link rounded-0" href="#ctftime" role="tab" data-toggle="tab">Time</a>
+				</li>
+				<li class="nav-item">
+					<a class="nav-link rounded-0" href="#legal" role="tab" data-toggle="tab">Legal</a>
 				</li>
 				<li class="nav-item">
 					<a class="nav-link rounded-0" href="#backup" role="tab" data-toggle="tab">Backup</a>
@@ -61,7 +70,11 @@
 			<div class="tab-content">
 				{% include "admin/configs/appearance.html" %}
 
+				{% include "admin/configs/theme.html" %}
+
 				{% include "admin/configs/accounts.html" %}
+
+				{% include "admin/configs/fields.html" %}
 
 				{% include "admin/configs/mlc.html" %}
 
@@ -72,6 +85,8 @@
 				{% include "admin/configs/email.html" %}
 
 				{% include "admin/configs/time.html" %}
+
+				{% include "admin/configs/legal.html" %}
 
 				{% include "admin/configs/backup.html" %}
 			</div>

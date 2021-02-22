@@ -1,4 +1,5 @@
 import datetime
+from collections import defaultdict
 
 from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
@@ -6,8 +7,6 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import column_property, validates
 
 from CTFd.cache import cache
-from CTFd.utils.crypto import hash_password
-from CTFd.utils.humanize.numbers import ordinalize
 
 db = SQLAlchemy()
 ma = Marshmallow()
@@ -37,6 +36,13 @@ class Notifications(db.Model):
 
     user = db.relationship("Users", foreign_keys="Notifications.user_id", lazy="select")
     team = db.relationship("Teams", foreign_keys="Notifications.team_id", lazy="select")
+
+    @property
+    def html(self):
+        from CTFd.utils.config.pages import build_html
+        from CTFd.utils.helpers import markup
+
+        return markup(build_html(self.content))
 
     def __init__(self, *args, **kwargs):
         super(Notifications, self).__init__(**kwargs)
@@ -78,8 +84,31 @@ class Challenges(db.Model):
     tags = db.relationship("Tags", backref="challenge")
     hints = db.relationship("Hints", backref="challenge")
     flags = db.relationship("Flags", backref="challenge")
+    comments = db.relationship("ChallengeComments", backref="challenge")
 
-    __mapper_args__ = {"polymorphic_identity": "standard", "polymorphic_on": type}
+    class alt_defaultdict(defaultdict):
+        """
+        This slightly modified defaultdict is intended to allow SQLAlchemy to
+        not fail when querying Challenges that contain a missing challenge type.
+
+        e.g. Challenges.query.all() should not fail if `type` is `a_missing_type`
+        """
+
+        def __missing__(self, key):
+            return self["standard"]
+
+    __mapper_args__ = {
+        "polymorphic_identity": "standard",
+        "polymorphic_on": type,
+        "_polymorphic_map": alt_defaultdict(),
+    }
+
+    @property
+    def html(self):
+        from CTFd.utils.config.pages import build_html
+        from CTFd.utils.helpers import markup
+
+        return markup(build_html(self.description))
 
     def __init__(self, *args, **kwargs):
         super(Challenges, self).__init__(**kwargs)
@@ -112,6 +141,13 @@ class Hints(db.Model):
     @property
     def description(self):
         return "Hint for {name}".format(name=self.challenge.name)
+
+    @property
+    def html(self):
+        from CTFd.utils.config.pages import build_html
+        from CTFd.utils.helpers import markup
+
+        return markup(build_html(self.content))
 
     def __init__(self, *args, **kwargs):
         super(Hints, self).__init__(**kwargs)
@@ -247,6 +283,10 @@ class Users(db.Model):
     # Relationship for Teams
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id"))
 
+    field_entries = db.relationship(
+        "UserFieldEntries", foreign_keys="UserFieldEntries.user_id", lazy="joined"
+    )
+
     created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     __mapper_args__ = {"polymorphic_identity": "user", "polymorphic_on": type}
@@ -256,6 +296,8 @@ class Users(db.Model):
 
     @validates("password")
     def validate_password(self, key, plaintext):
+        from CTFd.utils.crypto import hash_password
+
         return hash_password(str(plaintext))
 
     @hybrid_property
@@ -267,6 +309,20 @@ class Users(db.Model):
             return self.team_id
         elif user_mode == "users":
             return self.id
+
+    @hybrid_property
+    def account(self):
+        from CTFd.utils import get_config
+
+        user_mode = get_config("user_mode")
+        if user_mode == "teams":
+            return self.team
+        elif user_mode == "users":
+            return self
+
+    @property
+    def fields(self):
+        return self.get_fields(admin=False)
 
     @property
     def solves(self):
@@ -292,6 +348,14 @@ class Users(db.Model):
             return self.get_place(admin=False)
         else:
             return None
+
+    def get_fields(self, admin=False):
+        if admin:
+            return self.field_entries
+
+        return [
+            entry for entry in self.field_entries if entry.field.public and entry.value
+        ]
 
     def get_solves(self, admin=False):
         from CTFd.utils import get_config
@@ -365,6 +429,7 @@ class Users(db.Model):
         application itself will result in a circular import.
         """
         from CTFd.utils.scores import get_user_standings
+        from CTFd.utils.humanize.numbers import ordinalize
 
         standings = get_user_standings(admin=admin)
 
@@ -411,6 +476,10 @@ class Teams(db.Model):
     captain_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
     captain = db.relationship("Users", foreign_keys=[captain_id])
 
+    field_entries = db.relationship(
+        "TeamFieldEntries", foreign_keys="TeamFieldEntries.team_id", lazy="joined"
+    )
+
     created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     def __init__(self, **kwargs):
@@ -418,7 +487,13 @@ class Teams(db.Model):
 
     @validates("password")
     def validate_password(self, key, plaintext):
+        from CTFd.utils.crypto import hash_password
+
         return hash_password(str(plaintext))
+
+    @property
+    def fields(self):
+        return self.get_fields(admin=False)
 
     @property
     def solves(self):
@@ -444,6 +519,70 @@ class Teams(db.Model):
             return self.get_place(admin=False)
         else:
             return None
+
+    def get_fields(self, admin=False):
+        if admin:
+            return self.field_entries
+
+        return [
+            entry for entry in self.field_entries if entry.field.public and entry.value
+        ]
+
+    def get_invite_code(self):
+        from flask import current_app
+        from CTFd.utils.security.signing import serialize, hmac
+
+        secret_key = current_app.config["SECRET_KEY"]
+        if isinstance(secret_key, str):
+            secret_key = secret_key.encode("utf-8")
+
+        team_password_key = self.password.encode("utf-8")
+        verification_secret = secret_key + team_password_key
+
+        invite_object = {
+            "id": self.id,
+            "v": hmac(str(self.id), secret=verification_secret),
+        }
+        code = serialize(data=invite_object, secret=secret_key)
+        return code
+
+    @classmethod
+    def load_invite_code(cls, code):
+        from flask import current_app
+        from CTFd.utils.security.signing import (
+            unserialize,
+            hmac,
+            BadTimeSignature,
+            BadSignature,
+        )
+        from CTFd.exceptions import TeamTokenExpiredException, TeamTokenInvalidException
+
+        secret_key = current_app.config["SECRET_KEY"]
+        if isinstance(secret_key, str):
+            secret_key = secret_key.encode("utf-8")
+
+        # Unserialize the invite code
+        try:
+            # Links expire after 1 day
+            invite_object = unserialize(code, max_age=86400)
+        except BadTimeSignature:
+            raise TeamTokenExpiredException
+        except BadSignature:
+            raise TeamTokenInvalidException
+
+        # Load the team by the ID in the invite
+        team_id = invite_object["id"]
+        team = cls.query.filter_by(id=team_id).first_or_404()
+
+        # Create the team specific secret
+        team_password_key = team.password.encode("utf-8")
+        verification_secret = secret_key + team_password_key
+
+        # Verify the team verficiation code
+        verified = hmac(str(team.id), secret=verification_secret) == invite_object["v"]
+        if verified is False:
+            raise TeamTokenInvalidException
+        return team
 
     def get_solves(self, admin=False):
         from CTFd.utils import get_config
@@ -509,6 +648,7 @@ class Teams(db.Model):
         application itself will result in a circular import.
         """
         from CTFd.utils.scores import get_team_standings
+        from CTFd.utils.humanize.numbers import ordinalize
 
         standings = get_team_standings(admin=admin)
 
@@ -573,9 +713,7 @@ class Submissions(db.Model):
         return child_classes[type]
 
     def __repr__(self):
-        return "<Submission {}, {}, {}, {}>".format(
-            self.team_id, self.challenge_id, self.ip, self.provided
-        )
+        return f"<Submission id={self.id}, challenge_id={self.challenge_id}, ip={self.ip}, provided={self.provided}>"
 
 
 class Solves(Submissions):
@@ -697,3 +835,100 @@ class Tokens(db.Model):
 
 class UserTokens(Tokens):
     __mapper_args__ = {"polymorphic_identity": "user"}
+
+
+class Comments(db.Model):
+    __tablename__ = "comments"
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(80), default="standard")
+    content = db.Column(db.Text)
+    date = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    author_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    author = db.relationship("Users", foreign_keys="Comments.author_id", lazy="select")
+
+    @property
+    def html(self):
+        from CTFd.utils.config.pages import build_html
+        from CTFd.utils.helpers import markup
+
+        return markup(build_html(self.content, sanitize=True))
+
+    __mapper_args__ = {"polymorphic_identity": "standard", "polymorphic_on": type}
+
+
+class ChallengeComments(Comments):
+    __mapper_args__ = {"polymorphic_identity": "challenge"}
+    challenge_id = db.Column(
+        db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE")
+    )
+
+
+class UserComments(Comments):
+    __mapper_args__ = {"polymorphic_identity": "user"}
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+
+
+class TeamComments(Comments):
+    __mapper_args__ = {"polymorphic_identity": "team"}
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"))
+
+
+class PageComments(Comments):
+    __mapper_args__ = {"polymorphic_identity": "page"}
+    page_id = db.Column(db.Integer, db.ForeignKey("pages.id", ondelete="CASCADE"))
+
+
+class Fields(db.Model):
+    __tablename__ = "fields"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text)
+    type = db.Column(db.String(80), default="standard")
+    field_type = db.Column(db.String(80))
+    description = db.Column(db.Text)
+    required = db.Column(db.Boolean, default=False)
+    public = db.Column(db.Boolean, default=False)
+    editable = db.Column(db.Boolean, default=False)
+
+    __mapper_args__ = {"polymorphic_identity": "standard", "polymorphic_on": type}
+
+
+class UserFields(Fields):
+    __mapper_args__ = {"polymorphic_identity": "user"}
+
+
+class TeamFields(Fields):
+    __mapper_args__ = {"polymorphic_identity": "team"}
+
+
+class FieldEntries(db.Model):
+    __tablename__ = "field_entries"
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(80), default="standard")
+    value = db.Column(db.JSON)
+    field_id = db.Column(db.Integer, db.ForeignKey("fields.id", ondelete="CASCADE"))
+
+    field = db.relationship(
+        "Fields", foreign_keys="FieldEntries.field_id", lazy="joined"
+    )
+
+    __mapper_args__ = {"polymorphic_identity": "standard", "polymorphic_on": type}
+
+    @hybrid_property
+    def name(self):
+        return self.field.name
+
+    @hybrid_property
+    def description(self):
+        return self.field.description
+
+
+class UserFieldEntries(FieldEntries):
+    __mapper_args__ = {"polymorphic_identity": "user"}
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    user = db.relationship("Users", foreign_keys="UserFieldEntries.user_id")
+
+
+class TeamFieldEntries(FieldEntries):
+    __mapper_args__ = {"polymorphic_identity": "team"}
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"))
+    team = db.relationship("Teams", foreign_keys="TeamFieldEntries.team_id")

@@ -1,5 +1,6 @@
+from unittest.mock import Mock, patch
+
 import requests
-from mock import Mock, patch
 
 from CTFd.utils import get_config, set_config
 from CTFd.utils.updates import update_check
@@ -13,7 +14,7 @@ def test_update_check_is_called():
         assert get_config("version_latest") is None
 
 
-@patch.object(requests, "post")
+@patch.object(requests, "get")
 def test_update_check_identifies_update(fake_get_request):
     """Update checks properly identify new versions"""
     app = create_ctfd()

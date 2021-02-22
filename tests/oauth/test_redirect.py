@@ -55,7 +55,7 @@ def test_oauth_configured_flow():
 
         # Users should be able to register now
         assert Users.query.count() == 2
-        user = Users.query.filter_by(email="user@ctfd.io").first()
+        user = Users.query.filter_by(email="user@examplectf.com").first()
         assert user.oauth_id == 1337
         assert user.team_id == 1
 
@@ -71,9 +71,8 @@ def test_oauth_configured_flow():
         client = login_with_mlc(app)
         with client.session_transaction() as sess:
             assert sess["id"]
-            assert sess["name"]
-            assert sess["email"]
             assert sess["nonce"]
+            assert sess["hash"]
     destroy_ctfd(app)
 
 
