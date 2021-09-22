@@ -1,10 +1,10 @@
-from wtforms import BooleanField, SelectField, StringField, TextAreaField
+from wtforms import BooleanField, FileField, SelectField, StringField, TextAreaField
 from wtforms.fields.html5 import IntegerField, URLField
 from wtforms.widgets.html5 import NumberInput
 
 from CTFd.forms import BaseForm
 from CTFd.forms.fields import SubmitField
-from CTFd.models import db
+from CTFd.utils.csv import get_dumpable_tables
 
 
 class ResetInstanceForm(BaseForm):
@@ -43,6 +43,11 @@ class AccountSettingsForm(BaseForm):
         widget=NumberInput(min=0),
         description="Amount of users per team (Teams mode only)",
     )
+    num_teams = IntegerField(
+        "Total Number of Teams",
+        widget=NumberInput(min=0),
+        description="Max number of teams (Teams mode only)",
+    )
     verify_emails = SelectField(
         "Verify Emails",
         description="Control whether users must confirm their email addresses before playing",
@@ -51,7 +56,7 @@ class AccountSettingsForm(BaseForm):
     )
     team_disbanding = SelectField(
         "Team Disbanding",
-        description="Control whether team capatins are allowed to disband their own teams",
+        description="Control whether team captains are allowed to disband their own teams",
         choices=[
             ("inactive_only", "Enabled for Inactive Teams"),
             ("disabled", "Disabled"),
@@ -69,13 +74,17 @@ class AccountSettingsForm(BaseForm):
 
 
 class ExportCSVForm(BaseForm):
-    table = SelectField(
-        "Database Table",
-        choices=list(
-            zip(sorted(db.metadata.tables.keys()), sorted(db.metadata.tables.keys()))
-        ),
-    )
+    table = SelectField("Database Table", choices=get_dumpable_tables())
     submit = SubmitField("Download CSV")
+
+
+class ImportCSVForm(BaseForm):
+    csv_type = SelectField(
+        "CSV Type",
+        choices=[("users", "Users"), ("teams", "Teams"), ("challenges", "Challenges")],
+        description="Type of CSV data",
+    )
+    csv_file = FileField("CSV File", description="CSV file contents")
 
 
 class LegalSettingsForm(BaseForm):

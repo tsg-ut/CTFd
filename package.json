@@ -1,6 +1,6 @@
 {
   "name": "ctfd",
-  "version": "3.1.1",
+  "version": "3.4.0",
   "description": "CTFd is a Capture The Flag framework focusing on ease of use and customizability. It comes with everything you need to run a CTF and it's easy to customize with plugins and themes.",
   "main": "index.js",
   "directories": {
@@ -30,7 +30,7 @@
     "babel-loader": "^8.1.0",
     "bootstrap": "~4.3.1",
     "bootstrap-multimodal": "~1.0.4",
-    "codemirror": "~5.42.2",
+    "codemirror": "~5.58.2",
     "css-loader": "^3.6.0",
     "dayjs": "^1.9.6",
     "easymde": "^2.10.1",
