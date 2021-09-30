@@ -85,6 +85,8 @@ class ServerConfig(object):
     DATABASE_URL: str = empty_str_cast(config_ini["server"]["DATABASE_URL"]) \
         or f"sqlite:///{os.path.dirname(os.path.abspath(__file__))}/ctfd.db"
 
+    SQLALCHEMY_POOL_SIZE: str = empty_str_cast(config_ini["server"]["SQLALCHEMY_POOL_SIZE"], default="5")
+
     REDIS_URL: str = empty_str_cast(config_ini["server"]["REDIS_URL"])
 
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
