@@ -491,6 +491,13 @@ def oauth_redirect():
             user_name = api_data["name"]
             user_email = api_data["email"]
 
+            if user_email is None or len(user_email) == 0:
+                error_for(
+                    endpoint="auth.login",
+                    message="Email field is empty. Please contact admin",
+                )
+                return redirect(url_for("auth.login"))
+
             user = Users.query.filter_by(email=user_email).first()
             if user is None:
                 # Check if we are allowing registration before creating users
