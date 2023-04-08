@@ -1,7 +1,41 @@
+from functools import lru_cache, wraps
+from time import monotonic_ns
+
 from flask import request
 from flask_caching import Cache, make_template_fragment_key
 
 cache = Cache()
+
+
+def timed_lru_cache(timeout: int = 300, maxsize: int = 64, typed: bool = False):
+    """
+    lru_cache implementation that includes a time based expiry
+
+    Parameters:
+    seconds (int): Timeout in seconds to clear the WHOLE cache, default = 5 minutes
+    maxsize (int): Maximum Size of the Cache
+    typed (bool): Same value of different type will be a different entry
+
+    Implmentation from https://gist.github.com/Morreski/c1d08a3afa4040815eafd3891e16b945?permalink_comment_id=3437689#gistcomment-3437689
+    """
+
+    def wrapper_cache(func):
+        func = lru_cache(maxsize=maxsize, typed=typed)(func)
+        func.delta = timeout * 10 ** 9
+        func.expiration = monotonic_ns() + func.delta
+
+        @wraps(func)
+        def wrapped_func(*args, **kwargs):
+            if monotonic_ns() >= func.expiration:
+                func.cache_clear()
+                func.expiration = monotonic_ns() + func.delta
+            return func(*args, **kwargs)
+
+        wrapped_func.cache_info = func.cache_info
+        wrapped_func.cache_clear = func.cache_clear
+        return wrapped_func
+
+    return wrapper_cache
 
 
 def make_cache_key(path=None, key_prefix="view/%s"):
@@ -64,6 +98,18 @@ def clear_standings():
     cache.delete(make_template_fragment_key(CacheKeys.PUBLIC_SCOREBOARD_TABLE))
 
 
+def clear_challenges():
+    from CTFd.utils.challenges import get_all_challenges
+    from CTFd.utils.challenges import get_solves_for_challenge_id
+    from CTFd.utils.challenges import get_solve_ids_for_user_id
+    from CTFd.utils.challenges import get_solve_counts_for_challenges
+
+    cache.delete_memoized(get_all_challenges)
+    cache.delete_memoized(get_solves_for_challenge_id)
+    cache.delete_memoized(get_solve_ids_for_user_id)
+    cache.delete_memoized(get_solve_counts_for_challenges)
+
+
 def clear_pages():
     from CTFd.utils.config.pages import get_page, get_pages
 
@@ -78,24 +124,44 @@ def clear_user_recent_ips(user_id):
 
 
 def clear_user_session(user_id):
-    from CTFd.utils.user import get_user_attrs
+    from CTFd.utils.user import (
+        get_user_attrs,
+        get_user_place,
+        get_user_score,
+        get_user_recent_ips,
+    )
 
     cache.delete_memoized(get_user_attrs, user_id=user_id)
+    cache.delete_memoized(get_user_place, user_id=user_id)
+    cache.delete_memoized(get_user_score, user_id=user_id)
+    cache.delete_memoized(get_user_recent_ips, user_id=user_id)
 
 
 def clear_all_user_sessions():
-    from CTFd.utils.user import get_user_attrs
+    from CTFd.utils.user import (
+        get_user_attrs,
+        get_user_place,
+        get_user_score,
+        get_user_recent_ips,
+    )
 
     cache.delete_memoized(get_user_attrs)
+    cache.delete_memoized(get_user_place)
+    cache.delete_memoized(get_user_score)
+    cache.delete_memoized(get_user_recent_ips)
 
 
 def clear_team_session(team_id):
-    from CTFd.utils.user import get_team_attrs
+    from CTFd.utils.user import get_team_attrs, get_team_place, get_team_score
 
     cache.delete_memoized(get_team_attrs, team_id=team_id)
+    cache.delete_memoized(get_team_place, team_id=team_id)
+    cache.delete_memoized(get_team_score, team_id=team_id)
 
 
 def clear_all_team_sessions():
-    from CTFd.utils.user import get_team_attrs
+    from CTFd.utils.user import get_team_attrs, get_team_place, get_team_score
 
     cache.delete_memoized(get_team_attrs)
+    cache.delete_memoized(get_team_place)
+    cache.delete_memoized(get_team_score)

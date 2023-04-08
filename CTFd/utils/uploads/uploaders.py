@@ -5,6 +5,7 @@ from pathlib import PurePath
 from shutil import copyfileobj, rmtree
 
 import boto3
+from botocore.client import Config
 from flask import current_app, redirect, send_file
 from flask.helpers import safe_join
 from werkzeug.utils import secure_filename
@@ -84,11 +85,14 @@ class S3Uploader(BaseUploader):
         access_key = get_app_config("AWS_ACCESS_KEY_ID")
         secret_key = get_app_config("AWS_SECRET_ACCESS_KEY")
         endpoint = get_app_config("AWS_S3_ENDPOINT_URL")
+        region = get_app_config("AWS_S3_REGION")
         client = boto3.client(
             "s3",
+            config=Config(signature_version="s3v4"),
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
             endpoint_url=endpoint,
+            region_name=region,
         )
         return client
 

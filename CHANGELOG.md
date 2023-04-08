@@ -1,3 +1,201 @@
+# 3.5.1 / 2023-01-23
+
+**General**
+
+- The public scoreboard page is no longer shown to users if account visibility is disabled
+- Teams created by admins using the normal team creation flow are now hidden by default
+- Redirect users to the team creation page if they access a certain pages before the CTF starts
+- Added a notice on the Challenges page to remind Admins if they are in Admins Only mode
+- Fixed an issue where users couldn't login to their team even though they were already on the team
+- Fixed an issue with scoreboard tie breaking when an award results in a tie
+- Fixed the order of solves, fails, and awards to always be in chronological ordering (latest first).
+- Fixed an issue where certain custom fields could not be submitted
+
+**Admin Panel**
+
+- Improved the rendering of Admin Panel tables on mobile devices
+- Clarified the behavior of Score Visibility with respect to Account Visibility in the Admin Panel help text
+- Added user id and user email fields to the user mode scoreboard CSV export
+- Add CSV export for `teams+members+fields` which is teams with Custom Field entries and their team members with Custom Field entries
+- The import process will now catch all exceptions in the import process to report them in the Admin Panel
+- Fixed issue where `field_entries` could not be imported under MariaDB
+- Fixed issue where `config` entries sometimes would be recreated for some reason causing an import to fail
+- Fixed issue with Firefox caching checkboxes by adding `autocomplete='off'` to Admin Panel pages
+- Fixed issue where Next selection for a challenge wouldn't always load in Admin Panel
+
+**API**
+
+- Improve response time of `/api/v1/challenges` and `/api/v1/challenges/[challenge_id]/solves` by caching the solve count data for users and challenges
+- Add `HEAD /api/v1/notifications` to get a count of notifications that have happened.
+  - This also includes a `since_id` parameter to allow for a notification cursor.
+  - Unread notification count can now be tracked by themes that track which notifications a user has read
+- Add `since_id` to `GET /api/v1/notifications` to get Notifications that have happened since a specific ID
+
+**Deployment**
+
+- Imports have been disabled when running with a SQLite database backend
+  - See https://github.com/CTFd/CTFd/issues/2131
+- Added `/healthcheck` endpoint to check if CTFd is ready
+- There are now ARM Docker images for OSS CTFd
+- Bump dependencies for passlib, bcrypt, requests, gunicorn, gevent, python-geoacumen-city, cmarkgfm
+- Properly load `SAFE_MODE` config from environment variable
+- The `AWS_S3_REGION` config has been added to allow specifying an S3 region. The default is `us-east-1`
+- Add individual DATABASE config keys as an alternative to `DATABASE_URL`
+  - `DATABASE_PROTOCOL`: SQLAlchemy DB protocol (+ driver, optionally)
+  - `DATABASE_USER`: Username to access DB server with
+  - `DATABASE_PASSWORD`: Password to access DB server with
+  - `DATABASE_HOST`: Hostname of the DB server to access
+  - `DATABASE_PORT`: Port of the DB server to access
+  - `DATABASE_NAME`: Name of the database to use
+- Add individual REDIS config keys as an alternative to `REDIS_URL`
+  - `REDIS_PROTOCOL`: Protocol to access Redis server with (either redis or rediss)
+  - `REDIS_USER`: Username to access Redis server with
+  - `REDIS_PASSWORD`: Password to access Redis server with
+  - `REDIS_HOST`: Hostname of the Redis server to access
+  - `REDIS_PORT`: Port of the Redis server to access
+  - `REDIS_DB`: Numeric ID of the database to access
+
+**Plugins**
+
+- Adds support for `config.json` to have multiple paths to add to the Plugins dropdown in the Admin Panel
+- Plugins and their migrations now have access to the `get_all_tables` and `get_columns_for_table` functions
+- Email sending functions have now been seperated into classes that can be customized via plugins.
+  - Add `CTFd.utils.email.providers.EmailProvider`
+  - Add `CTFd.utils.email.providers.mailgun.MailgunEmailProvider`
+  - Add `CTFd.utils.email.providers.smtp.SMTPEmailProvider`
+  - Deprecate `CTFd.utils.email.mailgun.sendmail`
+  - Deprecate `CTFd.utils.email.smtp.sendmail`
+
+**Themes**
+
+- The beta interface `Assets.manifest_css` has been removed
+- `event-source-polyfill` is now pinned to 1.0.19.
+  - See https://github.com/CTFd/CTFd/issues/2159
+  - Note that we will not be using this polyfill starting with the `core-beta` theme.
+- Add autofocus to text fields on authentication pages
+
+# 3.5.0 / 2022-05-09
+
+**General**
+
+- Add a next challenge recommendation to challenges
+- Add support for only viewing hints after unlocking another hint
+- Add size checking and recommendation for images uploaded during setup
+
+**Admin Panel**
+
+- Imports now happen in the background so that admins can watch the status of the import
+  - Add progress tracking to backup/export importing
+  - Add `GET /admin/import` to see status of import
+  - The public user facing portion of CTFd is now disabled during imports
+- Fix issue where custom field entries for Users and Teams would be misaligned in the scoreboard CSV export
+- Show admins the email server error message when email sending fails
+- Fix issue where the current theme cannot be found in list of themes
+- Fix page preview so that it accounts for the provided format
+- Add links from User/Team Profile IP addresses to a User IP address search page
+- Add city geolocation to Team Profile IP addresses
+
+**API**
+
+- Add the `count` meta field to the following endpoints:
+  - `/api/v1/users/me/solves`
+  - `/api/v1/users/me/fails`
+  - `/api/v1/users/me/awards`
+  - `/api/v1/teams/me/awards`
+  - `/api/v1/users/[user_id]/solves`
+  - `/api/v1/users/[user_id]/fails`
+  - `/api/v1/users/[user_id]/awards`
+  - `/api/v1/teams/[team_id]/solves`
+  - `/api/v1/teams/[team_id]/awards`
+- Improve speed of `/api/v1/teams/me/fails`
+- Improve speed of `/api/v1/teams/[team_id]/fails`
+- Improve speed of `/api/v1/users/me/fails`
+- Improve speed of `/api/v1/users/[user_id]/fails`
+
+**Deployment**
+
+- Use Python 3.9 as the default Python version
+- Prevent any possible usage of an already existing session ID by checking for duplicates during during session ID generation
+- No longer install `python3-dev` in Dockerfile
+- docker-compose.yml now uses `nginx:stable` as the image for nginx
+
+**Plugins**
+
+- `CTFd._internal.challenge.render` and `CTFd._internal.challenge.renderer` in the `view.js` Challenge type file has been deprecated. Instead Challenge plugins should refer to the `challenge.html` attribute provided by the API. Essentially CTFd is moving to having markdown & HTML rendered by the server instead of rendering on the client.
+
+**Themes**
+
+- Create the [`core-beta` theme](https://github.com/CTFd/core-beta) and begin documenting the creation of themes using Vite
+- Add `userName` and `userEmail` to the CTFd init object in `base.html` for easier integration with other JavaScript code
+- Add `teamId` and `teamName` to the CTFd init object in `base.html` for easier integration with other JavaScript code
+- Adds the `Assets` constant to access front end assets from Jinja templates
+- Adds a `views.themes_beta` route to avoid the `.dev`/`.min` extension being added automatically to frontend asset urls
+
+**Miscellaneous**
+
+- Fix double logging in `log()` function
+- Add `--delete_import_on_finish` to `python manage.py import_ctf`
+- Fix issue where `field_entries` table could not be imported when moving between MySQL and MariaDB
+
+# 3.4.3 / 2022-03-07
+
+**Security**
+
+- Bump cmarkgfm to 0.8.0 to resolve CVE-2022-24724. Copied entry from 3.4.2 since 3.4.2 introduced a bug that prevented writing raw HTML.
+
+**General**
+
+- Fix issue where raw HTML would not be rendered in markdown
+
+# 3.4.2 / 2022-03-07
+
+**Security**
+
+- Bump cmarkgfm to 0.8.0 to resolve CVE-2022-24724
+
+**General**
+
+- Fix issue where unauthed users couldn't download challenge files after CTF end but viewing after CTF was enabled
+
+# 3.4.1 / 2022-02-19
+
+**General**
+
+- Make session cookies persist in the browser after close
+- Fix issue where all-numeric registration codes wouldn't work
+- Fix issue where a user's session isn't cleared properly after they are deleted by an admin
+- Fix issue where CTF end time couldn't be set during setup
+
+**API**
+
+- Improved speed of the `/api/v1/challenges/[challenge_id]/solves` endpoint
+- Document API authentication and `Content-Type` header requirement
+- Add nested `UserSchema` and `TeamSchema` to `SubmissionSchema` for easier access to account name
+
+**Admin Panel**
+
+- Improve CSV import error reporting and validation
+- Fix non-clickable checkbox label in user creation form in Admin Panel
+- Allow submissions per minute ratelimit to be configurable in Admin Panel
+- Add a link in the Pages Editor to the [Page Variables documentation page](https://docs.ctfd.io/docs/pages/variables/)
+
+**Themes**
+
+- Fix issue where invalid `theme_settings` can cause broken frontend
+- Replace `node-sass` with `sass` and upgrade `sass-loader`
+
+**Deployment**
+
+- Serve all assets from CTFd regardless of internet availability (i.e. fonts and font-awesome)
+- Fix regression in `REVERSE_PROXY` to allow comma seperated integers
+- Bump `flask-restx` to 0.5.1
+- Bump `pybluemonday` to 0.0.9
+- Added support for S3 signature version 4 authentication to support alternative S3 buckets (Google Cloud Storage, DigitalOcean Spaces, etc)
+
+**Miscellaneous**
+
+- Add a Github Actions job to publish Docker images to Dockerhub and ghcr
+
 # 3.4.0 / 2021-08-11
 
 **General**
