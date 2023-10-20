@@ -1,3 +1,82 @@
+# 3.6.0 / 2023-08-21
+
+**General**
+
+- Translations support for Spanish, Polish, German, Chinese
+  - If you wish to fix or maintain a language translation please join at CTFd's public [POEditor page](https://poeditor.com/join/project/p5jhdcrlm7).
+- Add a total user registration limit option
+- Dynamic value challenges can now choose between linear and logarithmic decay functions
+- Free hints are now visible by unauthenticated users if challenges are visible by unauthenticated users
+- Fix issue where a custom field named affiliation or website prevented registration
+  - No longer special case "Affiliation" or "Website" as custom field titles. Previously custom fields with those titles would set the user's affiliation or website but this behavior has been removed.
+
+**Admin Panel**
+
+- Challenge Preview has been improved to support arbitrary custom themes
+- Long flags in the Admin Panel are now truncated but can be expanded and copied
+- Add UI to mark incorrect submissions as correct
+  - Add the `discard` type for submissions
+  - Add `PATCH /api/v1/submissions/[submission_id]` to mark submissions as correct
+- Add section in the Config Panel to configure `HTML_SANITIZATION`
+  - Setting `HTML_SANITIZATION` to true in `config.ini` cannot be disabled via the Admin Panel
+- Add wildcard for email whitelisting
+
+**Deployment**
+
+- Add new envvar `SKIP_DB_PING` to instruct the CTFd Docker image to not test if the database server is available
+- Add new config `AWS_S3_ADDRESSING_STYLE`
+  - Support selecting the [S3 addressing style](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-bucket-intro.html#access-bucket-console-ex). It defaults to "auto" as when it's not set, but can also be set to `virtual` or `path`
+- Add new config `AWS_S3_CUSTOM_DOMAIN` which specifies a domain that replaces the default one in presigned download URLs
+  - Required for certain S3 implementations
+- Flask and Werkzeug have been upgraded to v2.0.3. Other dependencies have been updated for compatability.
+- SQLAlchemy has been updated to v1.4.
+- PyMySQL has been upgraded to v1.0.2.
+- The `flask` cli tool is now offered as an alternative to the `manage.py` script.
+- gzip compression is now enabled in the provided nginx configuration
+
+**API**
+
+- API tokens now have a description field
+- API tokens now start with a `ctfd_` prefix to make them easier to identify
+- `GET /api/v1/hints/[hint_id]` will now return hint information for free hints for unauthenticated users if challenges are visible
+
+**Themes**
+
+- core-beta is now provided in all CTFd instances
+- core-beta is the default theme during setup
+
+# 3.5.3 / 2023-06-08
+
+**Deployment**
+
+- Fixed permissions error in Dockerfile
+- Bump dependencies for pybluemonday
+
+# 3.5.2 / 2023-05-01
+
+**General**
+
+- Generate cachable S3 URLs by rounding time down to the previous hour to generate a consistent URL
+- Change email whitelist error message to not include the list of allowed domains
+- Clean up the language for confirming the password on team password change
+- Fix issue where dynamic challenges break if the decay is 0 and prevent users from adding a decay limit of 0 to dynamic value challenges
+
+**Admin Panel**
+
+- Adds support for admins to control `robots.txt`
+- Clean up the aesthetics for the 'Pause CTF' and 'View After CTF' configs
+- Replaced TLS and SSL checkbox text to match the defaults used by Mozilla Thunderbird to eliminate confusion when configuring SMTP
+
+**Deployment**
+
+- Slim down Docker image by removing several dependencies not needed for production usage
+  - The image size has been reduced from 648MB to 398MB
+- In the Docker image run CTFd in a virtual environment located at `/opt/venv`
+- Add freezegun to application dependencies
+- Bump dependencies for pybluemonday, redis, SQLAlchemy-Utils, python-geoacumen-city
+- Fix race conditions on cache healthcheck
+- Fix situations where numeric config items in config.ini could cause CTFd to not start
+
 # 3.5.1 / 2023-01-23
 
 **General**
