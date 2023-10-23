@@ -88,4 +88,5 @@ def tsgctf(challenge):
 DECAY_FUNCTIONS = {
     "linear": linear,
     "logarithmic": logarithmic,
+    "tsgctf": tsgctf,
 }
