@@ -84,6 +84,8 @@ def tsgctf(challenge):
     if value < challenge.minimum:
         value = challenge.minimum
 
+    return value
+
 
 DECAY_FUNCTIONS = {
     "linear": linear,
