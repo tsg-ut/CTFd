@@ -26,12 +26,14 @@
 			<ul>
 				<li>Linear: Calculated as <code>Initial - (Decay * SolveCount)</code></li>
 				<li>Logarithmic: Calculated as <code>(((Minimum - Initial) / (Decay^2)) * (SolveCount^2)) + Initial</code></li>
+				<li>TSG CTF: Developed by naan112358</li>
 			</ul>
 		</small>
 	</label>
 	<select name="function" class="custom-select">
 		<option value="linear" {% if challenge.function == "linear" %}selected{% endif %}>Linear</option>
 		<option value="logarithmic" {% if challenge.function == "logarithmic" %}selected{% endif %}>Logarithmic</option>
+		<option value="tsgctf" {% if challenge.function == "tsgctf" %}selected{% endif %}>TSG CTF</option>
 	</select>
 </div>
 
@@ -42,6 +44,7 @@
 			<ul>
 				<li>Linear: The amount of points deducted per solve. Equal deduction per solve.</li>
 				<li>Logarithmic: The amount of solves before the challenge reaches its minimum value. Earlier solves will lose less points. Later solves will lose more points</li>
+				<li>TSG CTF: No effect</li>
 			</ul>
 		</small>
 	</label>
