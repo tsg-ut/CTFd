@@ -2,7 +2,7 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 from CTFd.cache import clear_team_session, clear_user_session
 from CTFd.exceptions import TeamTokenExpiredException, TeamTokenInvalidException
-from CTFd.models import TeamFieldEntries, TeamFields, Teams, db
+from CTFd.models import Brackets, TeamFieldEntries, TeamFields, Teams, db
 from CTFd.utils import config, get_config, validators
 from CTFd.utils.crypto import verify_password
 from CTFd.utils.decorators import authed_only, ratelimit, registered_only
@@ -37,7 +37,7 @@ def listing():
         Teams.query.filter_by(hidden=False, banned=False)
         .filter(*filters)
         .order_by(Teams.id.asc())
-        .paginate(per_page=50)
+        .paginate(per_page=50, error_out=False)
     )
 
     args = dict(request.args)
@@ -228,6 +228,7 @@ def new():
         website = request.form.get("website")
         affiliation = request.form.get("affiliation")
         country = request.form.get("country")
+        bracket_id = request.form.get("bracket_id", None)
 
         user = get_current_user()
 
@@ -264,6 +265,16 @@ def new():
         else:
             valid_affiliation = True
 
+        if bracket_id:
+            valid_bracket = bool(
+                Brackets.query.filter_by(id=bracket_id, type="teams").first()
+            )
+        else:
+            if Brackets.query.filter_by(type="teams").count():
+                valid_bracket = False
+            else:
+                valid_bracket = True
+
         if country:
             try:
                 validators.validate_country_code(country)
@@ -279,6 +290,8 @@ def new():
             errors.append("Please provide a shorter affiliation")
         if valid_country is False:
             errors.append("Invalid country")
+        if valid_bracket is False:
+            errors.append("Please provide a valid bracket")
 
         if errors:
             return render_template("teams/new_team.html", errors=errors), 403
@@ -289,7 +302,11 @@ def new():
             hidden = True
 
         team = Teams(
-            name=teamname, password=passphrase, captain_id=user.id, hidden=hidden
+            name=teamname,
+            password=passphrase,
+            captain_id=user.id,
+            hidden=hidden,
+            bracket_id=bracket_id,
         )
 
         if website:
@@ -334,7 +351,7 @@ def private():
     awards = team.get_awards()
 
     place = team.place
-    score = team.score
+    score = team.get_score(admin=True)
 
     if config.is_scoreboard_frozen():
         infos.append("Scoreboard has been frozen")

@@ -9,6 +9,10 @@ from CTFd.api.v1.helpers.schemas import sqlalchemy_to_pydantic
 from CTFd.api.v1.schemas import APIDetailedSuccessResponse, APIListSuccessResponse
 from CTFd.cache import clear_challenges, clear_standings
 from CTFd.constants import RawEnum
+from CTFd.exceptions.challenges import (
+    ChallengeCreateException,
+    ChallengeUpdateException,
+)
 from CTFd.models import ChallengeFiles as ChallengeFilesModel
 from CTFd.models import Challenges
 from CTFd.models import ChallengeTopics as ChallengeTopicsModel
@@ -38,9 +42,11 @@ from CTFd.utils.decorators import (
     require_verified_emails,
 )
 from CTFd.utils.decorators.visibility import (
+    check_account_visibility,
     check_challenge_visibility,
     check_score_visibility,
 )
+from CTFd.utils.humanize.words import pluralize
 from CTFd.utils.logging import log
 from CTFd.utils.security.signing import serialize
 from CTFd.utils.user import (
@@ -240,9 +246,14 @@ class ChallengeList(Resource):
         if response.errors:
             return {"success": False, "errors": response.errors}, 400
 
-        challenge_type = data["type"]
+        challenge_type = data.get("type", "standard")
+
         challenge_class = get_chal_class(challenge_type)
-        challenge = challenge_class.create(request)
+        try:
+            challenge = challenge_class.create(request)
+        except ChallengeCreateException as e:
+            return {"success": False, "errors": {"": [str(e)]}}, 500
+
         response = challenge_class.read(challenge)
 
         clear_challenges()
@@ -385,10 +396,15 @@ class Challenge(Resource):
         for hint in Hints.query.filter_by(challenge_id=chal.id).all():
             if hint.id in unlocked_hints or ctf_ended():
                 hints.append(
-                    {"id": hint.id, "cost": hint.cost, "content": hint.content}
+                    {
+                        "id": hint.id,
+                        "cost": hint.cost,
+                        "title": hint.title,
+                        "content": hint.content,
+                    }
                 )
             else:
-                hints.append({"id": hint.id, "cost": hint.cost})
+                hints.append({"id": hint.id, "cost": hint.cost, "title": hint.title})
 
         response = chal_class.read(challenge=chal)
 
@@ -463,7 +479,12 @@ class Challenge(Resource):
 
         challenge = Challenges.query.filter_by(id=challenge_id).first_or_404()
         challenge_class = get_chal_class(challenge.type)
-        challenge = challenge_class.update(challenge, request)
+
+        try:
+            challenge = challenge_class.update(challenge, request)
+        except ChallengeUpdateException as e:
+            return {"success": False, "errors": {"": [str(e)]}}, 500
+
         response = challenge_class.read(challenge)
 
         clear_standings()
@@ -496,7 +517,7 @@ class ChallengeAttempt(Resource):
         if authed() is False:
             return {"success": True, "data": {"status": "authentication_required"}}, 403
 
-        if request.content_type != "application/json":
+        if not request.is_json:
             request_data = request.form
         else:
             request_data = request.get_json()
@@ -659,9 +680,7 @@ class ChallengeAttempt(Resource):
                 if max_tries:
                     # Off by one since fails has changed since it was gotten
                     attempts_left = max_tries - fails - 1
-                    tries_str = "tries"
-                    if attempts_left == 1:
-                        tries_str = "try"
+                    tries_str = pluralize(attempts_left, singular="try", plural="tries")
                     # Add a punctuation mark if there isn't one
                     if message[-1] not in "!().;?[]{}":
                         message = message + "."
@@ -702,6 +721,7 @@ class ChallengeAttempt(Resource):
 @challenges_namespace.route("/<challenge_id>/solves")
 class ChallengeSolves(Resource):
     @check_challenge_visibility
+    @check_account_visibility
     @check_score_visibility
     @during_ctf_time_only
     @require_verified_emails
@@ -738,7 +758,14 @@ class ChallengeFiles(Resource):
         ).all()
 
         for f in challenge_files:
-            response.append({"id": f.id, "type": f.type, "location": f.location})
+            response.append(
+                {
+                    "id": f.id,
+                    "type": f.type,
+                    "location": f.location,
+                    "sha1sum": f.sha1sum,
+                }
+            )
         return {"success": True, "data": response}
 
 

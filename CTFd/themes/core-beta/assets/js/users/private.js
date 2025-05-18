@@ -41,7 +41,7 @@ Alpine.data("UserGraphs", () => ({
     const data = [];
     for (const property in breakdown) {
       const percent = Number((breakdown[property] / categories.length) * 100).toFixed(
-        2
+        2,
       );
 
       data.push({
@@ -64,14 +64,17 @@ Alpine.data("UserGraphs", () => ({
     this.failCount = this.fails.meta.count;
     this.awardCount = this.awards.meta.count;
 
+    let optionMerge = window.userScoreGraphChartOptions;
+
     embed(
       this.$refs.scoregraph,
       getUserScoreOption(
         CTFd.user.id,
         CTFd.user.name,
         this.solves.data,
-        this.awards.data
-      )
+        this.awards.data,
+        optionMerge,
+      ),
     );
   },
 }));

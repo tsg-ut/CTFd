@@ -139,6 +139,14 @@
 			</h2>
 		{% endif %}
 
+		{% if user.bracket_id %}
+			<h2>
+				<span class="badge badge-secondary">
+					{{ user.bracket.name }}
+				</span>
+			</h2>
+		{% endif %}
+
 		{% for field in user.get_fields(admin=true) %}
 			<h3 class="d-block">
 				{{ field.name }}: {{ field.value }}
@@ -456,10 +464,8 @@ var stats_data = {{ {
 	'account_id': user.id,
 } | tojson }};
 </script>
-<script defer src="{{ url_for('views.themes', theme='admin', path='js/echarts.bundle.js') }}"></script>
-<script defer src="{{ url_for('views.themes', theme='admin', path='js/graphs.js') }}"></script>
 {% endblock %}
 
 {% block entrypoint %}
-	<script defer src="{{ url_for('views.themes', theme='admin', path='js/pages/user.js') }}"></script>
+	{{ Assets.js("assets/js/pages/user.js", theme="admin") }}
 {% endblock %}

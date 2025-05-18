@@ -1,13 +1,14 @@
-import base64  # noqa: I001
-
 import requests
 from flask import Blueprint, abort
 from flask import current_app as app
 from flask import redirect, render_template, request, session, url_for
-from itsdangerous.exc import BadSignature, BadTimeSignature, SignatureExpired
 
 from CTFd.cache import clear_team_session, clear_user_session
-from CTFd.models import Teams, UserFieldEntries, UserFields, Users, db
+from CTFd.exceptions.email import (
+    UserConfirmTokenInvalidException,
+    UserResetPasswordTokenInvalidException,
+)
+from CTFd.models import Brackets, Teams, UserFieldEntries, UserFields, Users, db
 from CTFd.utils import config, email, get_app_config, get_config
 from CTFd.utils import user as current_user
 from CTFd.utils import validators
@@ -21,7 +22,12 @@ from CTFd.utils.helpers import error_for, get_errors, markup
 from CTFd.utils.logging import log
 from CTFd.utils.modes import TEAMS_MODE
 from CTFd.utils.security.auth import login_user, logout_user
-from CTFd.utils.security.signing import unserialize
+from CTFd.utils.security.email import (
+    remove_email_confirm_token,
+    remove_reset_password_token,
+    verify_email_confirm_token,
+    verify_reset_password_token,
+)
 from CTFd.utils.validators import ValidationError
 
 auth = Blueprint("auth", __name__)
@@ -38,14 +44,11 @@ def confirm(data=None):
     # User is confirming email account
     if data and request.method == "GET":
         try:
-            user_email = unserialize(data, max_age=1800)
-        except (BadTimeSignature, SignatureExpired):
+            user_email = verify_email_confirm_token(data)
+        except (UserConfirmTokenInvalidException):
             return render_template(
-                "confirm.html", errors=["Your confirmation link has expired"]
-            )
-        except (BadSignature, TypeError, base64.binascii.Error):
-            return render_template(
-                "confirm.html", errors=["Your confirmation token is invalid"]
+                "confirm.html",
+                errors=["Your confirmation link is invalid, please generate a new one"],
             )
 
         user = Users.query.filter_by(email=user_email).first_or_404()
@@ -59,6 +62,7 @@ def confirm(data=None):
             name=user.name,
         )
         db.session.commit()
+        remove_email_confirm_token(data)
         clear_user_session(user_id=user.id)
         email.successful_registration_notification(user.email)
         db.session.close()
@@ -107,14 +111,11 @@ def reset_password(data=None):
 
     if data is not None:
         try:
-            email_address = unserialize(data, max_age=1800)
-        except (BadTimeSignature, SignatureExpired):
+            email_address = verify_reset_password_token(data)
+        except (UserResetPasswordTokenInvalidException):
             return render_template(
-                "reset_password.html", errors=["Your link has expired"]
-            )
-        except (BadSignature, TypeError, base64.binascii.Error):
-            return render_template(
-                "reset_password.html", errors=["Your reset token is invalid"]
+                "reset_password.html",
+                errors=["Your reset link is invalid, please generate a new one"],
             )
 
         if request.method == "GET":
@@ -138,6 +139,7 @@ def reset_password(data=None):
 
             user.password = password
             db.session.commit()
+            remove_reset_password_token(data)
             clear_user_session(user_id=user.id)
             log(
                 "logins",
@@ -206,6 +208,7 @@ def register():
         affiliation = request.form.get("affiliation")
         country = request.form.get("country")
         registration_code = str(request.form.get("registration_code", ""))
+        bracket_id = request.form.get("bracket_id", None)
 
         name_len = len(name) == 0
         names = (
@@ -264,9 +267,21 @@ def register():
         else:
             valid_affiliation = True
 
+        if bracket_id:
+            valid_bracket = bool(
+                Brackets.query.filter_by(id=bracket_id, type="users").first()
+            )
+        else:
+            if Brackets.query.filter_by(type="users").count():
+                valid_bracket = False
+            else:
+                valid_bracket = True
+
         if not valid_email:
             errors.append("Please enter a valid email address")
         if email.check_email_is_whitelisted(email_address) is False:
+            errors.append("Your email address is not from an allowed domain")
+        if email.check_email_is_blacklisted(email_address) is True:
             errors.append("Your email address is not from an allowed domain")
         if names:
             errors.append("That user name is already taken")
@@ -286,6 +301,8 @@ def register():
             errors.append("Invalid country")
         if valid_affiliation is False:
             errors.append("Please provide a shorter affiliation")
+        if valid_bracket is False:
+            errors.append("Please provide a valid bracket")
 
         if len(errors) > 0:
             return render_template(
@@ -297,7 +314,12 @@ def register():
             )
         else:
             with app.app_context():
-                user = Users(name=name, email=email_address, password=password)
+                user = Users(
+                    name=name,
+                    email=email_address,
+                    password=password,
+                    bracket_id=bracket_id,
+                )
 
                 if website:
                     user.website = website

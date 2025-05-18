@@ -141,6 +141,15 @@ class ServerConfig(object):
     PERMANENT_SESSION_LIFETIME: int = config_ini["security"].getint("PERMANENT_SESSION_LIFETIME") \
         or 604800
 
+    CROSS_ORIGIN_OPENER_POLICY: str = empty_str_cast(config_ini["security"].get("CROSS_ORIGIN_OPENER_POLICY")) \
+        or "same-origin-allow-popups"
+
+    TRUSTED_HOSTS: list[str] | None = None
+    if config_ini["security"].get("TRUSTED_HOSTS"):
+        TRUSTED_HOSTS = [
+            h.strip() for h in empty_str_cast(config_ini["security"].get("TRUSTED_HOSTS")).split(",")
+        ]
+
     """
     TRUSTED_PROXIES:
     Defines a set of regular expressions used for finding a user's IP address if the CTFd instance
@@ -211,6 +220,8 @@ class ServerConfig(object):
         AWS_S3_REGION: str = empty_str_cast(config_ini["uploads"]["AWS_S3_REGION"])
 
         AWS_S3_CUSTOM_DOMAIN: str = empty_str_cast(config_ini["uploads"].get("AWS_S3_CUSTOM_DOMAIN", ""))
+
+        AWS_S3_CUSTOM_PREFIX: str = empty_str_cast(config_ini["uploads"].get("AWS_S3_CUSTOM_PREFIX", ""))
 
         AWS_S3_ADDRESSING_STYLE: str = empty_str_cast(config_ini["uploads"].get("AWS_S3_ADDRESSING_STYLE", ""), default="auto")
 
@@ -293,4 +304,10 @@ class TestingConfig(ServerConfig):
 # Actually initialize ServerConfig to allow us to add more attributes on
 Config = ServerConfig()
 for k, v in config_ini.items("extra"):
+    # We should only add the values that are not yet loaded in ServerConfig.
+    if hasattr(Config, k):
+        raise ValueError(
+            f"Built-in Config {k} should not be defined in the [extra] section of config.ini"
+        )
+
     setattr(Config, k, v)

@@ -123,7 +123,8 @@ def get_team_attrs(team_id):
 def get_current_user_type(fallback=None):
     if authed():
         user = get_current_user_attrs()
-        return user.type
+        if user and user.type:
+            return user.type
     else:
         return fallback
 
@@ -135,7 +136,8 @@ def authed():
 def is_admin():
     if authed():
         user = get_current_user_attrs()
-        return user.type == "admin"
+        if user and user.type:
+            return user.type == "admin"
     else:
         return False
 
@@ -147,6 +149,7 @@ def is_verified():
             return user.verified
         else:
             return False
+    # If config doesn't specify to verify emails, then everyone is 'verified'
     else:
         return True
 
@@ -177,10 +180,20 @@ def get_ip(req=None):
 
 
 def get_locale():
+    # Use the user's preferred language
     if authed():
         user = get_current_user_attrs()
-        if user.language:
+        if user and user.language:
             return user.language
+    # Use cookie language
+    cookie_lang = request.cookies.get("language")
+    if cookie_lang and cookie_lang in Languages.values():
+        return cookie_lang
+    # Use the admin's default language
+    default_locale = get_config("default_locale")
+    if default_locale:
+        return default_locale
+    # Detect the user's browser specified language
     languages = Languages.values()
     return request.accept_languages.best_match(languages)
 
@@ -194,7 +207,7 @@ def get_current_user_recent_ips():
 
 @cache.memoize(timeout=300)
 def get_user_recent_ips(user_id):
-    hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
+    hour_ago = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
     addrs = (
         Tracking.query.with_entities(Tracking.ip.distinct())
         .filter(Tracking.user_id == user_id, Tracking.date >= hour_ago)

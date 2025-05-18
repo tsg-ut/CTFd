@@ -123,6 +123,11 @@ Alpine.data("CaptainMenu", () => ({
       this.$store.inviteToken = url;
       this.teamInviteModal = new Modal(document.getElementById("team-invite-modal"));
       this.teamInviteModal.show();
+    } else {
+      Object.keys(response.errors).map(error => {
+        const error_msg = response.errors[error];
+        alert(error_msg);
+      });
     }
   },
 
@@ -186,14 +191,17 @@ Alpine.data("TeamGraphs", () => ({
     this.failCount = this.fails.meta.count;
     this.awardCount = this.awards.meta.count;
 
+    let optionMerge = window.teamScoreGraphChartOptions;
+
     embed(
       this.$refs.scoregraph,
       getUserScoreOption(
         CTFd.team.id,
         CTFd.team.name,
         this.solves.data,
-        this.awards.data
-      )
+        this.awards.data,
+        optionMerge,
+      ),
     );
   },
 }));
