@@ -399,7 +399,7 @@ class Challenge(Resource):
                     {"id": hint.id, "cost": hint.cost, "content": hint.content}
                 )
             else:
-                hints.append({"id": hint.id, "cost": hint.cost})
+                hints.append({"id": hint.id, "cost": hint.cost, "title": hint.title})
 
         response = chal_class.read(challenge=chal)
 
@@ -753,7 +753,14 @@ class ChallengeFiles(Resource):
         ).all()
 
         for f in challenge_files:
-            response.append({"id": f.id, "type": f.type, "location": f.location})
+            response.append(
+                {
+                    "id": f.id,
+                    "type": f.type,
+                    "location": f.location,
+                    "sha1sum": f.sha1sum,
+                }
+            )
         return {"success": True, "data": response}
 
 

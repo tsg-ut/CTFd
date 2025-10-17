@@ -78,13 +78,13 @@ greenlet==3.0.3
     # via
     #   gevent
     #   sqlalchemy
-gunicorn==20.1.0
+gunicorn==23.0.0
     # via -r requirements.in
 idna==2.10
     # via requests
 itsdangerous==2.1.2
     # via flask
-jinja2==3.1.5
+jinja2==3.1.6
     # via
     #   -r requirements.in
     #   flask
@@ -113,6 +113,8 @@ maxminddb==1.5.4
     # via
     #   -r requirements.in
     #   python-geoacumen-city
+packaging==24.2
+    # via gunicorn
 passlib==1.7.4
     # via -r requirements.in
 pillow==10.1.0
