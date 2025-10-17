@@ -204,7 +204,7 @@ def setup():
                 set_config("oauth_callback_endpoint", oauth_callback_endpoint)
 
             # Create an empty index page
-            page = Pages(title=None, route="index", content="", draft=False)
+            page = Pages(title=ctf_name, route="index", content="", draft=False)
 
             # Upload banner
             default_ctf_banner_location = url_for("views.themes", path="img/logo.png")
@@ -212,6 +212,7 @@ def setup():
             if ctf_banner:
                 f = upload_file(file=ctf_banner, page_id=page.id)
                 default_ctf_banner_location = url_for("views.files", path=f.location)
+                set_config("ctf_banner", f.location)
 
             # Splice in our banner
             index = f"""<div class="row">

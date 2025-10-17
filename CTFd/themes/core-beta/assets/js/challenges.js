@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 
 import CTFd from "./index";
 
-import { Modal, Tab } from "bootstrap";
+import { Modal, Tab, Tooltip } from "bootstrap";
 import highlight from "./theme/highlight";
 
 function addTargetBlank(html) {
@@ -62,6 +62,7 @@ Alpine.data("Challenge", () => ({
   tab: null,
   solves: [],
   response: null,
+  share_url: null,
 
   async init() {
     highlight();
@@ -129,15 +130,40 @@ Alpine.data("Challenge", () => ({
           this.$dispatch("load-challenge", this.getNextId());
         });
       },
-      { once: true }
+      { once: true },
     );
     modal.hide();
+  },
+
+  async getShareUrl() {
+    let body = {
+      type: "solve",
+      challenge_id: this.id,
+    };
+    const response = await CTFd.fetch("/api/v1/shares", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    const url = data["data"]["url"];
+    this.share_url = url;
+  },
+
+  copyShareUrl() {
+    navigator.clipboard.writeText(this.share_url);
+    let t = Tooltip.getOrCreateInstance(this.$el);
+    t.enable();
+    t.show();
+    setTimeout(() => {
+      t.hide();
+      t.disable();
+    }, 2000);
   },
 
   async submitChallenge() {
     this.response = await CTFd.pages.challenge.submitChallenge(
       this.id,
-      this.submission
+      this.submission,
     );
 
     await this.renderSubmissionResponse();
@@ -241,7 +267,7 @@ Alpine.data("ChallengeBoard", () => ({
             // Remove location hash
             history.replaceState(null, null, " ");
           },
-          { once: true }
+          { once: true },
         );
         modal.show();
         history.replaceState(null, null, `#${challenge.data.name}-${challengeId}`);
