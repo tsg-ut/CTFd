@@ -16,6 +16,8 @@ import TagsList from "../components/tags/TagsList.vue";
 import ChallengeFilesList from "../components/files/ChallengeFilesList.vue";
 import HintsList from "../components/hints/HintsList.vue";
 import NextChallenge from "../components/next/NextChallenge.vue";
+import SolutionEditor from "../components/solution/SolutionEditor.vue";
+import RatingsViewer from "../components/ratings/RatingsViewer.vue";
 
 function loadChalTemplate(challenge) {
   CTFd._internal.challenge = {};
@@ -148,6 +150,10 @@ $(() => {
 
   $(".comments-challenge").click(function (_event) {
     $("#challenge-comments-window").modal();
+  });
+
+  $(".ratings-challenge").click(function (_event) {
+    $("#challenge-ratings-window").modal();
   });
 
   $(".delete-challenge").click(function (_e) {
@@ -322,6 +328,18 @@ $(() => {
     }).$mount(vueContainer);
   }
 
+  // Load SolutionEditor component
+  if (document.querySelector("#challenge-solution")) {
+    const solutionEditor = Vue.extend(SolutionEditor);
+    let vueContainer = document.createElement("div");
+    document.querySelector("#challenge-solution").appendChild(vueContainer);
+    new solutionEditor({
+      propsData: {
+        challenge_id: window.CHALLENGE_ID,
+      },
+    }).$mount(vueContainer);
+  }
+
   // Because this JS is shared by a few pages,
   // we should only insert the CommentBox if it's actually in use
   if (document.querySelector("#comment-box")) {
@@ -331,6 +349,16 @@ $(() => {
     document.querySelector("#comment-box").appendChild(vueContainer);
     new commentBox({
       propsData: { type: "challenge", id: window.CHALLENGE_ID },
+    }).$mount(vueContainer);
+  }
+
+  // Load RatingsViewer component
+  if (document.querySelector("#ratings-box")) {
+    const ratingsViewer = Vue.extend(RatingsViewer);
+    let vueContainer = document.createElement("div");
+    document.querySelector("#ratings-box").appendChild(vueContainer);
+    new ratingsViewer({
+      propsData: { challengeId: window.CHALLENGE_ID },
     }).$mount(vueContainer);
   }
 

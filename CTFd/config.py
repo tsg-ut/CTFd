@@ -1,4 +1,5 @@
 import configparser
+import json
 import os
 from distutils.util import strtobool
 from typing import Union
@@ -248,6 +249,8 @@ class ServerConfig(object):
 
     SAFE_MODE: bool = process_boolean_str(empty_str_cast(config_ini["optional"].get("SAFE_MODE", False), default=False))
 
+    EMAIL_CONFIRMATION_REQUIRE_INTERACTION: bool = process_boolean_str(empty_str_cast(config_ini["optional"].get("EMAIL_CONFIRMATION_REQUIRE_INTERACTION", False), default=False))
+
     if DATABASE_URL.startswith("sqlite") is False:
         SQLALCHEMY_ENGINE_OPTIONS = {
             "max_overflow": int(empty_str_cast(config_ini["optional"]["SQLALCHEMY_MAX_OVERFLOW"], default=20)),  # noqa: E131
@@ -283,6 +286,21 @@ class ServerConfig(object):
 
     OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID")
     OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET")
+
+    # === MANAGEMENT ===
+    PRESET_ADMIN_NAME: str = empty_str_cast(config_ini["management"].get("PRESET_ADMIN_NAME", "")) if config_ini.has_section("management") else None
+    PRESET_ADMIN_EMAIL: str = empty_str_cast(config_ini["management"].get("PRESET_ADMIN_EMAIL", "")) if config_ini.has_section("management") else None
+    PRESET_ADMIN_PASSWORD: str = empty_str_cast(config_ini["management"].get("PRESET_ADMIN_PASSWORD", "")) if config_ini.has_section("management") else None
+    PRESET_ADMIN_TOKEN: str = empty_str_cast(config_ini["management"].get("PRESET_ADMIN_TOKEN", "")) if config_ini.has_section("management") else None
+    PRESET_CONFIGS: str = empty_str_cast(config_ini["management"].get("PRESET_CONFIGS", "")) if config_ini.has_section("management") else None
+    if PRESET_CONFIGS and SAFE_MODE is False:
+        try:
+            PRESET_CONFIGS = json.loads(PRESET_CONFIGS)
+        except (ValueError, TypeError):
+            print("Exception occurred during PRESET_CONFIGS loading")
+            PRESET_CONFIGS = {}
+    else:
+        PRESET_CONFIGS = {}
 
     # === EXTRA ===
     # Since the configurations in section "[extra]" will be loaded later, it is not necessary to declare them here.

@@ -1,56 +1,56 @@
 {% extends "base.html" %}
 
-{% block stylesheets %}
-{% endblock %}
-
 {% block content %}
-<div class="jumbotron">
-	<div class="container">
-		<h1>Teams</h1>
-	</div>
-</div>
-<div class="container">
+  <div class="jumbotron">
+    <div class="container">
+      <h1>{% trans %}Teams{% endtrans %}</h1>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="row">
+      <div class="col-md-12">
+        {% if q and field %}
+          <h5 class="text-muted text-center">
+            Searching for teams with <strong>{{ field }}</strong> matching <strong>{{ q }}</strong>
+          </h5>
+          <h6 class="text-muted text-center pb-3">
+            Page {{ teams.page }} of {{ teams.total }} results
+          </h6>
+        {% endif %}
+
+        {% with form = Forms.teams.PublicTeamSearchForm(field=field, q=q) %}
+          <form method="GET" class="row justify-content-around align-items-center">
+            <div class="mb-3 col-md-2">
+              {{ form.field(class="form-select w-100") }}
+            </div>
+
+            <div class="mb-3 col-md-8">
+              {{ form.q(class="form-control w-100", placeholder="Search for matching teams") }}
+            </div>
+
+            <div class="mb-3 col-md-2">
+              <button type="submit" class="btn btn-primary w-100">
+                <i class="fas fa-search" aria-hidden="true"></i>
+              </button>
+            </div>
+          </form>
+        {% endwith %}
+      </div>
+    </div>
+
+    <hr>
+
 	<div class="row">
 		<div class="col-md-12">
-			{% if q and field %}
-			<h5 class="text-muted text-center">
-				Searching for teams with <strong>{{ field }}</strong> matching <strong>{{ q }}</strong>
-			</h5>
-			<h6 class="text-muted text-center pb-3">
-				Page {{ teams.page }} of {{ teams.total }} results
-			</h6>
-			{% endif %}
-
-			{% with form = Forms.teams.PublicTeamSearchForm(field=field, q=q) %}
-			<form method="GET" class="form-inline">
-				<div class="form-group col-md-2">
-					{{ form.field(class="form-control custom-select w-100") }}
-				</div>
-				<div class="form-group col-md-8">
-					{{ form.q(class="form-control w-100", placeholder="Search for matching teams") }}
-				</div>
-				<div class="form-group col-md-2">
-					<button type="submit" class="btn btn-primary w-100">
-						<i class="fas fa-search" aria-hidden="true"></i>
-					</button>
-				</div>
-			</form>
-			{% endwith %}
-		</div>
-	</div>
-
-	<hr>
-
-	<div class="row">
-		<div class="col-md-12">
-			<table class="table table-striped">
+			<table class="table table-striped align-middle">
 				<thead>
 					<tr>
-						<td><b>Team</b></td>
-						<td><b>Website</b></td>
-						<td class="d-none d-md-table-cell d-lg-table-cell"><b>Affiliation</b></td>
-						<td class="d-none d-md-table-cell d-lg-table-cell"><b>Country</b></td>
-					</tr>
+            <th class="text-md-start">{% trans %}Team{% endtrans %}</th>
+            <th>{% trans %}Website{% endtrans %}</th>
+            <th class="d-none d-md-table-cell">{% trans %}Affiliation{% endtrans %}</th>
+            <th class="d-none d-md-table-cell">{% trans %}Country{% endtrans %}</th>
+          </tr>
 				</thead>
 				<tbody>
 				{% for team in teams.items %}
@@ -61,35 +61,47 @@
 						{% else %}
 							<span>{{ team.name | truncate(50) }}</span>
 						{% endif %}
+
+            {% if team.bracket_id %}
+              <span class="badge bg-secondary ms-2">{{ team.bracket.name }}</span>
+            {% endif %}
+
 						{% if team.oauth_id %}
-                            {% if integrations.mlc() %}
-							<a href="https://majorleaguecyber.org/t/{{ team.name }}">
-								<span class="badge badge-primary">Official</span>
-							</a>
-                            {% endif %}
-                            {% if integrations.ctftime() %}
-							<a href="https://ctftime.org/team/{{ team.oauth_id }}">
-								<span class="badge badge-primary">CTftime</span>
-							</a>
-                            {% endif %}
+							{% if integrations.mlc() %}
+                <a href="https://majorleaguecyber.org/t/{{ team.name }}">
+                  <span class="badge badge-primary">Official</span>
+                </a>
+              {% endif %}
+              {% if integrations.ctftime() %}
+                <a href="https://ctftime.org/team/{{ team.oauth_id }}">
+                  <span class="badge badge-primary">CTftime</span>
+                </a>
+              {% endif %}
 						{% endif %}
 						</td>
 						<td class="text-center" style="width: 10px;">
 							{% if team.website and (team.website.startswith('http://') or team.website.startswith('https://')) %}
 								<a href="{{ team.website }}" target="_blank" rel="noopener">
-									<i class="fas fa-external-link-alt" data-toggle="tooltip" data-placement="top" title="{{ team.website }}"></i>
+									<i
+                      class="fas fa-external-link-alt"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      title="{{ team.website }}"
+                  ></i>
 								</a>
 							{% endif %}
 						</td>
-						<td class="d-none d-md-table-cell d-lg-table-cell">
+						<td class="d-none d-md-table-cell">
 							{% if team.affiliation %}
 								{% if team.affiliation | length > 50 %}
-								<span data-toggle="tooltip" data-placement="top" title="{{ team.affiliation }}">
+								<span data-bs-toggle="tooltip" data-bs-placement="top" title="{{ team.affiliation }}">
 									{% if team.affiliation %}{{ team.affiliation | truncate(50) }}{% endif %}
 								</span>
 								{% else %}
 								<span>
-									{% if team.affiliation %}{{ team.affiliation | truncate(50) }}{% endif %}
+									{% if team.affiliation %}
+                    {{ team.affiliation | truncate(50) }}
+                  {% endif %}
 								</span>
 								{% endif %}
 							{% endif %}
@@ -97,39 +109,46 @@
 						<td class="d-none d-md-table-cell d-lg-table-cell text-center">
 							<span>
 								{% if team.country %}
-									<i class="flag-{{ team.country.lower() }}"></i>
-									{{ lookup_country_code(team.country) }}
-								{% endif %}
+                  <i class="flag-{{ team.country.lower() }}"></i>
+                  {{ lookup_country_code(team.country) }}
+                {% endif %}
 							</span>
-						</td>
-					</tr>
-				{% endfor %}
-				</tbody>
-			</table>
-		</div>
-	</div>
-	{% if teams.pages > 1 %}
-	<div class="row">
-		<div class="col-md-12">
-			<div class="text-center">Page
-				<br>
-				{% if teams.page != 1 %}
-				<a href="{{ prev_page }}">&lt;&lt;&lt;</a>
-				{% endif %}
-				<select class="page-select">
-					{% for page in range(1, teams.pages + 1) %}
-					<option {% if teams.page == page %}selected{% endif %}>{{ page }}</option>
-					{% endfor %}
-				</select>
-				{% if teams.next_num %}
-				<a href="{{ next_page }}">&gt;&gt;&gt;</a>
-				{% endif %}
-			</div>
-		</div>
-	</div>
-	{% endif %}
-</div>
+              </td>
+            </tr>
+          {% endfor %}
+
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if teams.pages > 1 %}
+      <div class="row">
+        <div class="col-md-12">
+          <div class="text-center">
+            {% trans %}Page{% endtrans %} <br>
+
+            {% if teams.page != 1 %}
+              <a href="{{ prev_page }}">&lt;&lt;&lt;</a>
+            {% endif %}
+
+            <select class="page-select">
+              {% for page in range(1, teams.pages + 1) %}
+                <option {% if teams.page == page %}selected{% endif %}>{{ page }}</option>
+              {% endfor %}
+            </select>
+
+            {% if teams.next_num %}
+              <a href="{{ next_page }}">&gt;&gt;&gt;</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+  </div>
 {% endblock %}
 
 {% block scripts %}
+  {{ Assets.js("assets/js/teams/list.js") }}
 {% endblock %}
