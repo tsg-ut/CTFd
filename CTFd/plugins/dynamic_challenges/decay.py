@@ -75,9 +75,7 @@ def tsgctf(challenge):
     if solve_count == 0:
         solve_count = 1
 
-    value = challenge.initial * (1.0 + math.log10(solve_count) ** 2 / 2.079) ** (
-        -1.5
-    )
+    value = challenge.initial * (1.0 + math.log10(solve_count) ** 2 / 2.079) ** (-1.5)
 
     value = math.ceil(value)
 

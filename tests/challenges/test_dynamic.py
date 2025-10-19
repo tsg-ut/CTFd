@@ -203,7 +203,7 @@ def test_dynamic_challenge_loses_value_properly():
 
         gen_flag(app.db, challenge_id=1, content="flag")
 
-        for i, team_id in enumerate(range(2, 26)):
+        for _, team_id in enumerate(range(2, 26)):
             name = "user{}".format(team_id)
             email = "user{}@examplectf.com".format(team_id)
             # We need to bypass rate-limiting so gen_user instead of register_user

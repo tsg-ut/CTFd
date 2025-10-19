@@ -1,6 +1,7 @@
 from CTFd.utils import get_app_config, get_config
 from CTFd.utils.config import is_setup
 
+
 def mlc():
     if get_app_config("OAUTH_PROVIDER") != "mlc":
         return False
