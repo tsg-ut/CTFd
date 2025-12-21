@@ -25,10 +25,12 @@ def get_standings(count=None, bracket_id=None, admin=False, fields=None):
         db.session.query(
             Solves.account_id.label("account_id"),
             db.func.sum(Challenges.value).label("score"),
-            db.func.max(db.func.IF(Challenges.name == "Survey", 0, Solves.id)).label(
-                "id"
-            ),
-            db.func.max(Solves.date).label("date"),
+            db.func.max(
+                db.func.IF(Challenges.name == "Survey", 0, Solves.id)
+            ).label("id"),
+            db.func.max(
+                db.func.IF(Challenges.name == "Survey", None, Solves.date)
+            ).label("date"),
         )
         .join(Challenges)
         .filter(Challenges.value != 0)
